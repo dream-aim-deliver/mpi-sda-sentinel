@@ -1,4 +1,4 @@
-# mpi-sda-twitter-scraper
+# mpi-sda-satellite
 
 ## Description
 This is a Satellite Image scraper that uses the SentinelHub API to scrape Images for a given location and date.
