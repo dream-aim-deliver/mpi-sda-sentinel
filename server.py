@@ -1,45 +1,58 @@
+# server.py
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import logging
 from dotenv import load_dotenv
+from models import PipelineRequestModel, QueryModel
+from sentinel import SentinelHubPipelineElement
+import time
 
-from models import PipelineRequestModel
-
-# TODO: Add time to measure server response time
-
+# Initialize FastAPI app
 app = FastAPI()
 
+# Load environment variables
 load_dotenv()
-logging.basicConfig(level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
 
+# Set up logging
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                    datefmt='%Y-%m-%d %H:%M:%S')
 logging.captureWarnings(True)
 
 
 @app.put("/pipeline")
 async def process_pipeline(request_data: PipelineRequestModel):
-    lfn = request_data.lfn
-    # data_sources = request_data.data_sources
+    """
+    Process the pipeline request using Sentinel Hub Pipeline.
 
-    # You can process the data_sources as needed here
-    results = []
+    Args:
+        request_data (PipelineRequestModel): A model representing the pipeline request data.
 
-    # for source in data_sources:
-    #     source_name = source.source
-    #     query = source.q
-    #     latitude = query.latitude
-    #     longitude = query.longitude
+    Returns:
+        JSONResponse: A response object with the result of the processing.
+    """
+    start_time = time.time()  # Record start time for response time measurement
+    try:
+        # Create an instance of SentinelHubPipelineElement with the request data
+        sentinel_pipeline = SentinelHubPipelineElement(request_data, request_data.start_date, request_data.end_date)
 
-        # Append results for each source to the results list
-        # results.append({"source": source_name, "latitude": latitude, "longitude": longitude})
+        # Execute the pipeline process
+        sentinel_pipeline.execute()
 
-    # response_data = {"message": "Pipeline processing completed for " + name, "results": results}
-    return JSONResponse(content="Pipeline processing completed for " + lfn)
+        # Calculate response time
+        response_time = time.time() - start_time
+        response_data = {
+            "message": f"Pipeline processing completed for {request_data.lfn}",
+            "response_time": f"{response_time:.2f} seconds"
+        }
+        return JSONResponse(content=response_data)
+    except Exception as e:
+        logging.error(f"Error in processing pipeline: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error occurred.")
 
 
+# Running the server
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("server:app", host="0.0.0.0", port=8000, reload=True)
