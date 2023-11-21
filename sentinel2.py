@@ -8,6 +8,10 @@ from geopy.geocoders import Nominatim
 from geopy.exc import GeocoderUnavailable, GeocoderTimedOut
 from utils import plot_image
 from models import PipelineRequestModel
+from app.sdk.kernel_plackster_gateway import KernelPlancksterGateway  # type: ignore
+from app.sdk.minio_gateway import MinIORepository
+from app.sdk.models import LFN, BaseJob, BaseJobState, DataSource, Protocol
+
 import logging
 
 # Load environment variables
@@ -25,17 +29,24 @@ class SentinelHubPipelineElement:
         image_dir (str): Directory path for saving the images.
     """
 
-    def __init__(self, request: PipelineRequestModel, start_date: str, end_date: str, image_dir: str = None, resolution: int = 60) -> None:
+    def __init__(self, job: BaseJob, kernel_planckster: KernelPlancksterGateway, minio_repository: MinIORepository,
+                 protocol: Protocol = Protocol.S3, start_date: str, end_date: str, image_dir: str = None, resolution: int = 60) -> None:
         """
-        Initializes the SentinelHubPipelineElement with the given request and date range.
+        Initializes the SentinelHubPipelineElement with the given parameters.
 
         Args:
-            request (PipelineRequestModel): A request model object containing the necessary parameters.
+            job (BaseJob): The job information.
+            kernel_planckster (KernelPlancksterGateway): The gateway for Kernel Planckster.
+            minio_repository (MinIORepository): The MinIO repository.
+            protocol (Protocol, optional): The protocol for data storage (default is Protocol.S3).
             start_date (str): The start date for the data request in 'YYYY-MM-DD' format.
             end_date (str): The end date for the data request in 'YYYY-MM-DD' format.
             image_dir (str, optional): Directory path for saving images. Defaults to the path from environment variable IMAGE_SAVE_PATH.
         """
-        self.lfn = request.lfn
+        self.job = job
+        self.kernel_planckster = kernel_planckster
+        self.minio_repository = minio_repository
+        self.protocol = protocol
         self.start_date = start_date
         self.end_date = end_date
         self.image_dir = image_dir or os.getenv("IMAGE_SAVE_PATH")
@@ -157,13 +168,28 @@ class SentinelHubPipelineElement:
         """
         Main execution function that runs the pipeline process.
         """
-        df = self.load_data(self.lfn)
-        df = self.generate_bounding_box(df)
-        df_coords = self.generate_coordinate_lists(df)
-        config = self.get_sentinel_hub_config()
-        evalscript_true_color = self.get_satellite_bands_config()
-        true_color_images = self.get_images(df_coords, evalscript_true_color, config, self.start_date, self.end_date)
-        self.plot_and_save_images(true_color_images)
+        try:
+            # Set the job state to running
+            self.job.set_state(BaseJobState.RUNNING)
+            self.job.touch()
+            df = self.load_data(self.lfn)
+            df = self.generate_bounding_box(df)
+            df_coords = self.generate_coordinate_lists(df)
+            config = self.get_sentinel_hub_config()
+            evalscript_true_color = self.get_satellite_bands_config()
+            true_color_images = self.get_images(df_coords, evalscript_true_color, config, self.start_date, self.end_date)
+            self.plot_and_save_images(true_color_images)
+            # Update job state to finished when the execution is complete
+            self.job.set_state(BaseJobState.FINISHED)
+            self.job.touch()
+
+        except Exception as e:
+            # Handle exceptions and update job state to failed
+            logging.error(f"Error during job execution: {e}")
+            self.job.set_state(BaseJobState.FAILED)
+            self.job.add_message(f"Status: FAILED. Error: {e}")
+            self.job.touch()
+
 
     @staticmethod
     def get_satellite_bands_config() -> str:
@@ -216,16 +242,43 @@ class SentinelHubPipelineElement:
         return images
 
     def plot_and_save_images(self, true_color_imgs: list) -> None:
-        """
-        Plots and saves the retrieved images.
+    """
+    Plots and saves the retrieved images.
 
-        Args:
-            true_color_imgs (list): A list of images to be plotted and saved.
-        """
-        for index, image in enumerate(true_color_imgs):
-            plot_image(image, factor=3.5 / 255, clip_range=(0, 1))
-            image_filename = f"true_color_image_{index}.png"
-            image_path = os.path.join(self.image_dir, image_filename)
-            os.makedirs(os.path.dirname(image_path), exist_ok=True)
-            Image.fromarray((image * 255).astype('uint8')).save(image_path)
-            print(f"Image saved to: {image_path}")
+    Args:
+        true_color_imgs (list): A list of images to be plotted and saved.
+    """
+    for index, image in enumerate(true_color_imgs):
+        plot_image(image, factor=3.5 / 255, clip_range=(0, 1))
+        image_filename = f"true_color_image_{index}.png"
+        image_path = os.path.join(self.image_dir, image_filename)
+        os.makedirs(os.path.dirname(image_path), exist_ok=True)
+        Image.fromarray((image * 255).astype('uint8')).save(image_path)
+        print(f"Image saved to: {image_path}")
+
+        # Update LFNs and job information for each image
+        media_lfn = LFN(
+            protocol=self.protocol,
+            tracer_id=self.job.tracer_id,
+            job_id=self.job.id,
+            source=DataSource.SENTINEL,
+            relative_path=f"sentinelimg/{image_filename}",
+        )
+        if self.protocol == Protocol.S3:
+            pfn = self.minio_repository.lfn_to_pfn(media_lfn)
+            print(f"Uploading satellite image {media_lfn} to {pfn}")
+            self.minio_repository.upload_file(media_lfn, image_path)
+            print(f"Uploaded satellite image {media_lfn} to {pfn}")
+        elif self.protocol == Protocol.LOCAL:
+            pfn = f"data/{media_lfn.tracer_id}/{media_lfn.source.value}/{media_lfn.job_id}/{media_lfn.relative_path}"
+            print(f"Saving satellite image {media_lfn} locally to {pfn}")
+            os.makedirs(os.path.dirname(pfn), exist_ok=True)
+            shutil.copy(image_path, pfn)
+            print(f"Saving satellite image {media_lfn} to {pfn}")
+
+        self.job.output_lfns.append(media_lfn)
+        self.job.touch()
+        self.kernel_planckster.register_new_data(pfns=[pfn])
+        
+
+
