@@ -28,10 +28,9 @@ class PipelineRequestModel(BaseModel):
     A model representing a request for a pipeline process.
 
     Attributes:
-        lfn (str): A local filename or identifier for the pipeline request.
+       
         # data_sources (list[DataSourceModel]): A list of DataSourceModel instances (uncomment if needed).
     """
-    lfn: str
     start_date: date = Field(default_factory=date.today)
     end_date: date = Field(default_factory=date.today)
 
@@ -40,7 +39,7 @@ class SentinelHubRequest(PipelineRequestModel):
     A model extending PipelineRequestModel specifically for Sentinel Hub requests.
 
     Attributes:
-        lfn (str): Inherits the local filename or identifier from PipelineRequestModel.
+      
         q (QueryModel): A QueryModel instance representing geographical coordinates for the Sentinel Hub request.
     """
     q: QueryModel

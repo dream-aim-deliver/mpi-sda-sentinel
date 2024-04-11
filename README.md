@@ -17,7 +17,8 @@ cp .env.template .env
 ```bash
 ./run.sh
 ```
-
+### Run the Hawaii demo
+./demo.sh
 ## Development
 ```
 python3 -m venv .venv
