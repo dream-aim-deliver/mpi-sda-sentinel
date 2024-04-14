@@ -56,6 +56,8 @@ def main(
     sentinel_config = get_scraping_config(
         job_id=job_id,
         logger=logger,
+        sentinel_client_id=sentinel_client_id,
+        sentinel_client_secret=sentinel_client_secret
     )
 
 
@@ -157,7 +159,6 @@ if __name__ == "__main__":
         help="image dir",
     )
 
-
     parser.add_argument(
         "--resolution",
         type=str,
@@ -165,7 +166,55 @@ if __name__ == "__main__":
         help="resolution",
     )
 
-   
+
+
+    parser.add_argument(
+        "--sentinel_client_id",
+        type=str,
+        default="60",
+        help="client id",
+    )
+
+    parser.add_argument(
+        "--sentinel_client_secret",
+        type=str,
+        default="60",
+        help="client secret ",
+    )
+
+    
+
+    parser.add_argument(
+        "--kp_host",
+        type=str,
+        default="60",
+        help="kp host",
+    )
+
+    parser.add_argument(
+        "--kp_port",
+        type=int,
+        default="60",
+        help="kp port",
+    )
+
+    parser.add_argument(
+        "--kp_auth_token",
+        type=str,
+        default="60",
+        help="kp auth token",
+        )
+
+    parser.add_argument(
+        "--kp_scheme",
+        type=str,
+        default="http",
+        help="kp scheme",
+        )
+
+
+
+
 
     args = parser.parse_args()
 
@@ -181,7 +230,14 @@ if __name__ == "__main__":
         start_date=args.start_date,
         end_date=args.end_date,
         image_dir=args.image_dir,
-        resolution=args.resolution
+        resolution=args.resolution,
+        sentinel_client_id=args.sentinel_client_id,
+        sentinel_client_secret=args.sentinel_client_secret,
+        kp_host=args.kp_host,
+        kp_port=args.kp_port,
+        kp_auth_token=args.kp_auth_token,
+        kp_scheme=args.kp_scheme
+    
     )
 
 
