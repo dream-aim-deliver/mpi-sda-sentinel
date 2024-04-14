@@ -143,7 +143,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--image_dir",
         type=str,
-        default="./tmp",
+        default="./.tmp",
         help="image dir",
     )
 

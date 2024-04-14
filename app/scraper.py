@@ -16,7 +16,7 @@ from numpy import ndarray
 import numpy as np
 import cv2
 import tempfile
-
+import shutil
 # Load environment variables
 load_dotenv()
 
@@ -104,12 +104,14 @@ def get_images(logger: Logger, job_id: int, tracer_id:str, scraped_data_reposito
 
             current_data = media_data
             
-
-            scraped_data_repository.register_scraped_photo(
-                job_id=job_id,
-                source_data=media_data,
-                local_file_name=image_path,
-            )
+            try:
+                scraped_data_repository.register_scraped_photo(
+                    job_id=job_id,
+                    source_data=media_data,
+                    local_file_name=image_path,
+                )
+            except Exception as e:
+                logger.info("could not register file")
 
             output_data_list.append(media_data)
             #job.touch()
@@ -135,12 +137,14 @@ def get_images(logger: Logger, job_id: int, tracer_id:str, scraped_data_reposito
 
             current_data = media_data
             
-
-            scraped_data_repository.register_scraped_photo(
-                job_id=job_id,
-                source_data=media_data,
-                local_file_name=image_path,
-            )
+            try:
+                scraped_data_repository.register_scraped_photo(
+                    job_id=job_id,
+                    source_data=media_data,
+                    local_file_name=image_path,
+                )
+            except Exception as e:
+                logger.info("could not register file")
 
             output_data_list.append(media_data)
             #job.touch()
@@ -195,12 +199,14 @@ def augment_images(logger: Logger, job_id: int, tracer_id:str, scraped_data_repo
 
         current_data = media_data
         
-
-        scraped_data_repository.register_scraped_json(
-            job_id=job_id,
-            source_data=media_data,
-            local_file_name=jsonpath,
-        )
+        try:
+            scraped_data_repository.register_scraped_json(
+                job_id=job_id,
+                source_data=media_data,
+                local_file_name=jsonpath,
+            )
+        except Exception as e:
+            logger.info("could not register file")
 
         output_data_list.append(media_data)
         #job.touch()
@@ -269,7 +275,7 @@ def scrape(
                 }
         
             except Exception as e:
-                logging.error(f"Error in processing pipeline: {e}")
+                logger.error(f"Error in processing pipeline: {e}")
                 #raise HTTPException(status_code=500, detail="Internal server error occurred.")
                 job_state = BaseJobState.FAILED
                 logger.error(
@@ -286,7 +292,7 @@ def scrape(
             job_state = BaseJobState.FINISHED
             #job.touch()
             logger.info(f"{job_id}: Job finished")
-
+            shutil.rmtree(image_dir)
             return JobOutput(
                 job_state=job_state,
                 tracer_id=tracer_id,
@@ -297,4 +303,5 @@ def scrape(
     except Exception as error:
         logger.error(f"{job_id}: Unable to scrape data. Job with tracer_id {tracer_id} failed. Error:\n{error}")
         job_state = BaseJobState.FAILED
+        shutil.rmtree(image_dir)
         #job.messages.append(f"Status: FAILED. Unable to scrape data. {e}")
