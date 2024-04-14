@@ -5,5 +5,4 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY . /app
-ENV PYTHONPATH "${PYTHONPATH}:${WORKDIR}"
 RUN pip install -r requirements.txt
