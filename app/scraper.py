@@ -8,7 +8,6 @@ import time
 import os
 import json
 import pandas as pd
-from dotenv import load_dotenv
 from PIL import Image
 from utils import date_range, save_image
 from models import PipelineRequestModel
@@ -17,8 +16,6 @@ import numpy as np
 import cv2
 import tempfile
 import shutil
-# Load environment variables
-load_dotenv()
 
 def get_satellite_bands_config() -> str:
         """

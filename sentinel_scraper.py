@@ -20,6 +20,12 @@ def main(
     end_date: str,
     image_dir: str,
     resolution: int,
+    sentinel_client_id: str,
+    sentinel_client_secret: str,
+    kp_host: str,
+    kp_port: str,
+    kp_auth_token: str,
+    kp_scheme: str,
     log_level: str = "WARNING",
 ) -> None:
 
@@ -35,6 +41,10 @@ def main(
     kernel_planckster, protocol, file_repository = setup(
         job_id=job_id,
         logger=logger,
+        kp_auth_token=kp_auth_token,
+        kp_host=kp_host,
+        kp_port=kp_port,
+        kp_scheme=kp_scheme,
     )
 
     scraped_data_repository = ScrapedDataRepository(
