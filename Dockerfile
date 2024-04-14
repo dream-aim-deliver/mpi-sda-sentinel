@@ -3,5 +3,7 @@ FROM python:3.10
 RUN apt-get update && apt-get install -y \
     libgl1-mesa-glx \
     && rm -rf /var/lib/apt/lists/*
-COPY . .
+WORKDIR /app
+COPY . /app
+ENV PYTHONPATH "${PYTHONPATH}:${WORKDIR}"
 RUN pip install -r requirements.txt
