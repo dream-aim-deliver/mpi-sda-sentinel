@@ -24,7 +24,7 @@ jobs:
                 uses: docker/metadata-action@v5
                 with:
                     images: |
-                        mpidsg/mpi-sda-satellite
+                        maany/mpi-sda-satellite
                     tags: |
                         type=semver,pattern={{version}}
             -
