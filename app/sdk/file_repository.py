@@ -70,6 +70,11 @@ class FileRepository:
         with open(file_path, "rb") as f:
             upload_res = requests.put(signed_url, data=f, verify=False)
 
+        self.logger.info(f"Uploaded file to signed url: {signed_url}")
+        self.logger.info(f"Upload response: {upload_res.text}")
+        self.logger.info(f"Upload status code: {upload_res.status_code}")
+        self.logger.info(f"Upload headers: {upload_res.headers}")
+        
         if upload_res.status_code != 200:
             raise ValueError(f"Failed to upload file to signed url: {upload_res.text}")
 
