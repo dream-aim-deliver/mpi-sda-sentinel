@@ -17,37 +17,68 @@ import cv2
 import tempfile
 import shutil
 
-def get_satellite_bands_config() -> str:
+def get_satellite_bands_config(augmentation_type: str) -> str:
         """
         Returns the evalscript configuration for Sentinel Hub.
 
         Returns:
             str: Evalscript for true color imagery.
         """
-        return """
+        if augmentation_type == "wildfire":
+            return """
+                function setup() {
+                return {
+                    input: ["B02", "B03", "B04", "B08", "B11", "B12", "dataMask"],
+                    output: { bands: 4 }
+                    };
+                }
+
+                function evaluatePixel(samples) {
+                    var NDWI=index(samples.B03, samples.B08); 
+                    var NDVI=index(samples.B08, samples.B04);
+                    var INDEX= ((samples.B11 - samples.B12) / (samples.B11 + samples.B12))+(samples.B08);
+
+                    if((INDEX>0.1)||(samples.B02>0.1)||(samples.B11<0.1)||(NDVI>0.3)||(NDWI > 0.1)){
+                        return[2.5*samples.B04, 2.5*samples.B03, 2.5*samples.B02, samples.dataMask]
+                    }
+                    else {
+                    return [1, 0, 0, samples.dataMask]
+                    }
+                }
+            """
+        
+        elif augmentation_type == "climate":
+            return """
+
+            //VERSION=3
+            var minVal = 0.0;
+            var maxVal = 0.1;
+            var diff = maxVal - minVal;
+            const map = [
+                [minVal, 0x00007f], 
+                [minVal + 0.125 * diff, 0x0000ff],
+                [minVal + 0.375 * diff, 0x00ffff],
+                [minVal + 0.625 * diff, 0xffff00],
+                [minVal + 0.875 * diff, 0xff0000],
+                [maxVal, 0x7f0000]
+            ]; 
+
+            const visualizer = new ColorRampVisualizer(map)
             function setup() {
             return {
-                input: ["B02", "B03", "B04", "B08", "B11", "B12", "dataMask"],
+                input: ["CO","dataMask"],
                 output: { bands: 4 }
-                };
+            };
             }
 
             function evaluatePixel(samples) {
-                var NDWI=index(samples.B03, samples.B08); 
-                var NDVI=index(samples.B08, samples.B04);
-                var INDEX= ((samples.B11 - samples.B12) / (samples.B11 + samples.B12))+(samples.B08);
-
-                if((INDEX>0.1)||(samples.B02>0.1)||(samples.B11<0.1)||(NDVI>0.3)||(NDWI > 0.1)){
-                    return[2.5*samples.B04, 2.5*samples.B03, 2.5*samples.B02, samples.dataMask]
-                }
-                else {
-                return [1, 0, 0, samples.dataMask]
-                }
+            const [r, g, b] = visualizer.process(samples.CO);
+            return [r, g, b, samples.dataMask];
             }
-        """
+            """
 
 
-def get_images(logger: Logger, job_id: int, tracer_id:str, scraped_data_repository: ScrapedDataRepository, output_data_list: list[KernelPlancksterSourceData], protocol: ProtocolEnum, coords_wgs84: tuple[float, float, float, float], evalscript_true_color: str, config: SHConfig, start_date: str, end_date: str, resolution: int, image_dir: str):
+def get_images(logger: Logger, job_id: int, tracer_id:str, scraped_data_repository: ScrapedDataRepository, output_data_list: list[KernelPlancksterSourceData], protocol: ProtocolEnum, coords_wgs84: tuple[float, float, float, float], evalscript_true_color: str, config: SHConfig, start_date: str, end_date: str, resolution: int, image_dir: str, augmentation_type: str):
     """
     Retrieves images for each set of coordinates in the DataFrame within the specified date range.
 
@@ -68,13 +99,21 @@ def get_images(logger: Logger, job_id: int, tracer_id:str, scraped_data_reposito
     date_intervals = date_range(start_date, end_date)
     
     #logging.log(f"Image shape at {resolution} m resolution: {coords_size} pixels")
+    dataset = None
+    if augmentation_type == "wildfire":
+        dataset = DataCollection.SENTINEL2_L1C
+    elif augmentation_type == "climate":
+        dataset = DataCollection.SENTINEL5P
     for interval in date_intervals:
-        request_true_color = SentinelHubRequest(
-            evalscript=evalscript_true_color,
-            input_data=[SentinelHubRequest.input_data(data_collection=DataCollection.SENTINEL2_L1C, time_interval=interval)],
-            responses=[SentinelHubRequest.output_response("default", MimeType.PNG)],
-            bbox=coords_bbox, size=coords_size, config=config
-        )
+        try:
+            request_true_color = SentinelHubRequest(
+                evalscript=evalscript_true_color,
+                input_data=[SentinelHubRequest.input_data(data_collection=dataset, time_interval=interval)],
+                responses=[SentinelHubRequest.output_response("default", MimeType.PNG)],
+                bbox=coords_bbox, size=coords_size, config=config
+            )
+        except Exception as e:
+            logger.warn(e)
 
         data = request_true_color.get_data()
 
@@ -227,6 +266,7 @@ def scrape(
     start_date: str,
     end_date: str,
     image_dir: str,
+    augmentation_type: str,
     resolution: int
 
 
@@ -260,8 +300,8 @@ def scrape(
             try:
                 # Create an instance of SentinelHubPipelineElement with the request data
                 coords_wgs84 = (long_left,lat_down,long_right, lat_up)
-                evalscript_true_color = get_satellite_bands_config()
-                output_data_list = get_images(logger, job_id, tracer_id, scraped_data_repository, output_data_list, protocol, coords_wgs84, evalscript_true_color, config, start_date, end_date, resolution, image_dir)
+                evalscript_true_color = get_satellite_bands_config(augmentation_type=augmentation_type)
+                output_data_list = get_images(logger, job_id, tracer_id, scraped_data_repository, output_data_list, protocol, coords_wgs84, evalscript_true_color, config, start_date, end_date, resolution, image_dir, augmentation_type=augmentation_type)
                 output_data_list = augment_images(logger, job_id, tracer_id, scraped_data_repository, output_data_list, protocol, coords_wgs84, image_dir)
 
                 # Calculate response time
@@ -289,7 +329,10 @@ def scrape(
             job_state = BaseJobState.FINISHED
             #job.touch()
             logger.info(f"{job_id}: Job finished")
-            shutil.rmtree(image_dir)
+            try:
+                shutil.rmtree(image_dir)
+            except Exception as e:
+                logger.warning("Could not delete tmp directory, exiting")
             return JobOutput(
                 job_state=job_state,
                 tracer_id=tracer_id,
@@ -300,5 +343,8 @@ def scrape(
     except Exception as error:
         logger.error(f"{job_id}: Unable to scrape data. Job with tracer_id {tracer_id} failed. Error:\n{error}")
         job_state = BaseJobState.FAILED
-        shutil.rmtree(image_dir)
+        try:
+            shutil.rmtree(image_dir)
+        except Exception as e:
+            logger.warning("Could not delete tmp directory, exiting")
         #job.messages.append(f"Status: FAILED. Unable to scrape data. {e}")
