@@ -26,6 +26,7 @@ def main(
     kp_port: str,
     kp_auth_token: str,
     kp_scheme: str,
+    augmentation_type: str,
     log_level: str = "WARNING",
 ) -> None:
 
@@ -76,6 +77,7 @@ def main(
         start_date=start_date,
         end_date=end_date,
         image_dir=image_dir,
+        augmentation_type=augmentation_type,
         resolution=resolution
     )
 
@@ -161,7 +163,7 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--resolution",
-        type=str,
+        type=int,
         default=60,
         help="resolution",
     )
@@ -204,6 +206,14 @@ if __name__ == "__main__":
         default="60",
         help="kp auth token",
         )
+    
+
+    parser.add_argument(
+        "--augmentation_type",
+        type=str,
+        default="climate",
+        help="type of augmentation scraper should perform",
+        )
 
     parser.add_argument(
         "--kp_scheme",
@@ -236,6 +246,7 @@ if __name__ == "__main__":
         kp_host=args.kp_host,
         kp_port=args.kp_port,
         kp_auth_token=args.kp_auth_token,
+        augmentation_type=args.augmentation_type,
         kp_scheme=args.kp_scheme
     )
 
