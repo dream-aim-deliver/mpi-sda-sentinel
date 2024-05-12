@@ -1,3 +1,3 @@
-python sentinel_scraper.py --start_date=2023-6-1 --end_date=2023-6-30 --long_left=-116.949 --lat_up=59.3 --long_right=-112.7 --lat_down=57.2 --log-level="INFO" \
+python sentinel_scraper.py --job-id 1 --start_date=2023-6-1 --end_date=2023-6-3 --long_left=-113 --lat_up=59.3 --long_right=-108.5 --lat_down=57.2 --log-level="INFO" \
  --kp_auth_token test123 --kp_host localhost --kp_port 8000 --kp_scheme http --augmentation_type climate --resolution 190\
  --sentinel_client_id 764d8515-ad3b-4587-a946-470bac3295c2 --sentinel_client_secret sNvworOKMrAuGHFuDSuGprZL4e7Vp2VT
