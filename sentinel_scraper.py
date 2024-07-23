@@ -70,7 +70,7 @@ def main(
         job_id=job_id,
         tracer_id=tracer_id,
         scraped_data_repository=scraped_data_repository,
-        log_level=log_level,
+        log_level=log_level, parser = argparse.ArgumentParser(description="Scrape data from Sentinel datacollection.")
         long_left=long_left,
         lat_down=lat_down,
         long_right=long_right,
@@ -91,7 +91,7 @@ if __name__ == "__main__":
 
     import argparse
 
-    parser = argparse.ArgumentParser(description="Scrape data from Sentinel datacollection.")
+    parser = argparse.ArgumentParser(description="Scrape data from Sentinel HUB.")
 
 
     parser.add_argument(
