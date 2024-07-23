@@ -19,6 +19,7 @@ def main(
     start_date: str,
     end_date: str,
     image_dir: str,
+    augmentation_type:str,
     resolution: int,
     sentinel_client_id: str,
     sentinel_client_secret: str,
@@ -76,6 +77,7 @@ def main(
         start_date=start_date,
         end_date=end_date,
         image_dir=image_dir,
+        augmentation_type=augmentation_type,
         resolution=resolution
     )
 
@@ -85,7 +87,7 @@ if __name__ == "__main__":
 
     import argparse
 
-    parser = argparse.ArgumentParser(description="Scrape data from a telegram channel.")
+    parser = argparse.ArgumentParser(description="Scrape data from Sentinel HUB.")
 
 
     parser.add_argument(
@@ -160,6 +162,13 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
+        "--augmentation_type",
+        type=str,
+        default="wildfire",
+        help="The augmentation type",
+    )
+
+    parser.add_argument(
         "--resolution",
         type=str,
         default=60,
@@ -230,6 +239,7 @@ if __name__ == "__main__":
         start_date=args.start_date,
         end_date=args.end_date,
         image_dir=args.image_dir,
+        augmentation_type=args.augmentation_type,
         resolution=args.resolution,
         sentinel_client_id=args.sentinel_client_id,
         sentinel_client_secret=args.sentinel_client_secret,

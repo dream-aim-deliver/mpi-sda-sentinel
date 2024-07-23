@@ -28,37 +28,91 @@ def get_image_hash(image):
     hasher.update(image.tobytes())
     return hasher.hexdigest()
 
-def get_satellite_bands_config() -> str:
+def get_satellite_bands_config(augmentation_type: str) -> str:
         """
         Returns the evalscript configuration for Sentinel Hub.
 
         Returns:
             str: Evalscript for true color imagery.
         """
-        return """
+        if augmentation_type == "wildfire":
+            return """
+                function setup() {
+                return {
+                    input: ["B02", "B03", "B04", "B08", "B11", "B12", "dataMask"],
+                    output: { bands: 4 }
+                    };
+                }
+
+                function evaluatePixel(samples) {
+                    var NDWI=index(samples.B03, samples.B08); 
+                    var NDVI=index(samples.B08, samples.B04);
+                    var INDEX= ((samples.B11 - samples.B12) / (samples.B11 + samples.B12))+(samples.B08);
+
+                    if((INDEX>0.1)||(samples.B02>0.1)||(samples.B11<0.1)||(NDVI>0.3)||(NDWI > 0.1)){
+                        return[2.5*samples.B04, 2.5*samples.B03, 2.5*samples.B02, samples.dataMask]
+                    }
+                    else {
+                    return [1, 0, 0, samples.dataMask]
+                    }
+                }
+            """
+        
+        elif augmentation_type == "climate":
+            return """
+
+            //VERSION=3
+            var minVal = 0.0;
+            var maxVal = 0.1;
+            var diff = maxVal - minVal;
+            const map = [
+                [minVal, 0x00007f], 
+                [minVal + 0.125 * diff, 0x0000ff],
+                [minVal + 0.375 * diff, 0x00ffff],
+                [minVal + 0.625 * diff, 0xffff00],
+                [minVal + 0.875 * diff, 0xff0000],
+                [maxVal, 0x7f0000]
+            ]; 
+
+            const visualizer = new ColorRampVisualizer(map)
             function setup() {
             return {
-                input: ["B02", "B03", "B04", "B08", "B11", "B12", "dataMask"],
+                input: ["CO","dataMask"],
                 output: { bands: 4 }
-                };
+            };
             }
 
             function evaluatePixel(samples) {
-                var NDWI=index(samples.B03, samples.B08); 
-                var NDVI=index(samples.B08, samples.B04);
-                var INDEX= ((samples.B11 - samples.B12) / (samples.B11 + samples.B12))+(samples.B08);
-
-                if((INDEX>0.1)||(samples.B02>0.1)||(samples.B11<0.1)||(NDVI>0.3)||(NDWI > 0.1)){
-                    return[2.5*samples.B04, 2.5*samples.B03, 2.5*samples.B02, samples.dataMask]
-                }
-                else {
-                return [1, 0, 0, samples.dataMask]
-                }
+            const [r, g, b] = visualizer.process(samples.CO);
+            return [r, g, b, samples.dataMask];
             }
-        """
+            """
+
+def get_true_color_config():
+     return """
+                function setup() {
+                return {
+                    input: ["B02", "B03", "B04", "B08", "B11", "B12", "dataMask"],
+                    output: { bands: 4 }
+                    };
+                }
+
+                function evaluatePixel(samples) {
+                    var NDWI=index(samples.B03, samples.B08); 
+                    var NDVI=index(samples.B08, samples.B04);
+                    var INDEX= ((samples.B11 - samples.B12) / (samples.B11 + samples.B12))+(samples.B08);
+
+                    if((INDEX>0.1)||(samples.B02>0.1)||(samples.B11<0.1)||(NDVI>0.3)||(NDWI > 0.1)){
+                        return[2.5*samples.B04, 2.5*samples.B03, 2.5*samples.B02, samples.dataMask]
+                    }
+                    else {
+                    return [1, 0, 0, samples.dataMask]
+                    }
+                }
+            """
 
 
-def get_images(logger: Logger, job_id: int, tracer_id:str, scraped_data_repository: ScrapedDataRepository, output_data_list: list[KernelPlancksterSourceData], protocol: ProtocolEnum, coords_wgs84: tuple[float, float, float, float], evalscript_true_color: str, config: SHConfig, start_date: str, end_date: str, resolution: int, image_dir: str):
+def get_images(logger: Logger, job_id: int, tracer_id:str, scraped_data_repository: ScrapedDataRepository, output_data_list: list[KernelPlancksterSourceData], protocol: ProtocolEnum, coords_wgs84: tuple[float, float, float, float], evalscript_bands_config: str, config: SHConfig, start_date: str, end_date: str, resolution: int, image_dir: str, augmentation_type: str):
     """
     Retrieves images for each set of coordinates in the DataFrame within the specified date range.
 
@@ -77,19 +131,39 @@ def get_images(logger: Logger, job_id: int, tracer_id:str, scraped_data_reposito
     coords_bbox = BBox(bbox=coords_wgs84, crs=CRS.WGS84)
     coords_size = bbox_to_dimensions(coords_bbox, resolution=resolution)
     date_intervals = date_range(start_date, end_date)
-    
+    evalscript_truecolor = get_true_color_config()
     #logging.log(f"Image shape at {resolution} m resolution: {coords_size} pixels")
+    dataset = None
+    if augmentation_type == "wildfire":
+        dataset = DataCollection.SENTINEL2_L1C
+    elif augmentation_type == "climate":
+        dataset = DataCollection.SENTINEL5P
+
+    
+
     for interval in date_intervals:
-        request_true_color = SentinelHubRequest(
-            evalscript=evalscript_true_color,
-            input_data=[SentinelHubRequest.input_data(data_collection=DataCollection.SENTINEL2_L1C, time_interval=interval)],
-            responses=[SentinelHubRequest.output_response("default", MimeType.PNG)],
-            bbox=coords_bbox, size=coords_size, config=config
-        )
+      
+        try:
+            request_bands_config = SentinelHubRequest(
+                evalscript=evalscript_bands_config,
+                input_data=[SentinelHubRequest.input_data(data_collection=dataset, time_interval=interval)],
+                responses=[SentinelHubRequest.output_response("default", MimeType.PNG)],
+                bbox=coords_bbox, size=coords_size, config=config
+            )
 
-        data = request_true_color.get_data()
+        except Exception as e:
+            logger.warn(e)
+        
+        data = None
+        try:
+            data = request_bands_config.get_data()
+        except Exception as e:
+            logger.warning(e)
 
-        image = data[0]
+        image = None
+        if len(data)> 0:
+            image = data[0]
+ 
         if np.mean(image) != 0.0: #if image is not entirely blank
                         
             #TODO: implment tempfile
@@ -98,7 +172,7 @@ def get_images(logger: Logger, job_id: int, tracer_id:str, scraped_data_reposito
             image_path = os.path.join(image_dir, "true_color", image_filename)
             os.makedirs(os.path.dirname(image_path), exist_ok=True)
             save_image(image, image_path, factor=1.5/255, clip_range=(0, 1))
-            logger.info(f"True color Image saved to: {image_path}")
+            logger.info(f"Configured Bands Image saved to: {image_path}")
 
             
             data_name = sanitize_filename(f"{interval}_truecolor_{image_hash}")
@@ -111,8 +185,6 @@ def get_images(logger: Logger, job_id: int, tracer_id:str, scraped_data_reposito
                 relative_path=relative_path,
             )
 
-            current_data = media_data
-            
             try:
                 scraped_data_repository.register_scraped_photo(
                     job_id=job_id,
@@ -124,8 +196,10 @@ def get_images(logger: Logger, job_id: int, tracer_id:str, scraped_data_reposito
 
             output_data_list.append(media_data)
             #job.touch()
-        
-            last_successful_data = media_data
+            
+
+           
+
         
             
             image_filename = f"{interval}_masked_{image_hash}.png"
@@ -144,8 +218,6 @@ def get_images(logger: Logger, job_id: int, tracer_id:str, scraped_data_reposito
                 relative_path=relative_path,
             )
 
-            current_data = media_data
-            
             try:
                 scraped_data_repository.register_scraped_photo(
                     job_id=job_id,
@@ -156,15 +228,67 @@ def get_images(logger: Logger, job_id: int, tracer_id:str, scraped_data_reposito
                 logger.info("could not register file")
 
             output_data_list.append(media_data)
-            #job.touch()
+           
+    for interval in date_intervals:
+      
+        try:
         
-            last_successful_data = media_data
+            request_truecolor = SentinelHubRequest(
+                evalscript=evalscript_truecolor,
+                input_data=[SentinelHubRequest.input_data(data_collection= DataCollection.SENTINEL2_L1C, time_interval=interval)],
+                responses=[SentinelHubRequest.output_response("default", MimeType.PNG)],
+                bbox=coords_bbox, size=coords_size, config=config
+            )
+        except Exception as e:
+            logger.warn(e)
+        
+        data = None
+        truecolor = None
+        try:
+            truecolor = request_truecolor.get_data()
+        except Exception as e:
+            logger.warning(e)
+
+        image_true_color = None
+        if len(truecolor) > 0:
+           image_true_color = truecolor[0]
+        if np.mean(image_true_color) != 0.0: #if image is not entirely blank
+           
+            image_filename = f"{interval}_{augmentation_type}_true_color.png"
+            image_path = os.path.join(image_dir, "true_color", image_filename)
+            os.makedirs(os.path.dirname(image_path), exist_ok=True)
+            save_image(image_true_color, image_path, factor=1.5/255, clip_range=(0, 1))
+            logger.info(f"True Color Image saved to: {image_path}")
+
+            
+            data_name = str(interval).strip("()").replace("-","_").replace(",","_").replace("\'","").replace(" ","_") + "_" + augmentation_type + "_true_color"
+            relative_path = f"sentinel/{tracer_id}/{job_id}/true_color/{data_name}.png"
+
+        
+            media_data = KernelPlancksterSourceData(
+                name=data_name,
+                protocol=protocol,
+                relative_path=relative_path,
+            )
+
+            try:
+                scraped_data_repository.register_scraped_photo(
+                    job_id=job_id,
+                    source_data=media_data,
+                    local_file_name=image_path,
+                )
+            except Exception as e:
+                logger.info("could not register file")
+
+            # output_data_list.append(media_data)
+           
+        
     return output_data_list
 
 
         
 
-def augment_images(logger: Logger, job_id: int, tracer_id:str, scraped_data_repository: ScrapedDataRepository, output_data_list: list[KernelPlancksterSourceData], protocol: ProtocolEnum, coords_wgs84: tuple[float, float, float, float], image_dir: str):
+def augment_images(logger: Logger, job_id: int, tracer_id:str, scraped_data_repository: ScrapedDataRepository, output_data_list: list[KernelPlancksterSourceData], protocol: ProtocolEnum, coords_wgs84: tuple[float, float, float, float], image_dir: str, augmentation_type: str):
     # Read the satellite image
     latitudes = [coords_wgs84[1], coords_wgs84[3]]  
     longitudes = [coords_wgs84[0], coords_wgs84[2]]
@@ -182,17 +306,24 @@ def augment_images(logger: Logger, job_id: int, tracer_id:str, scraped_data_repo
             for j in range(width):
                 # Extract pixel values
                 pixel = image[i, j]
-                # Check if the pixel is pure red
-                if (pixel == [0, 0, 255]).all(): #bgr
-                    # Convert pixel coordinates to latitude and longitude
-                    latitude = latitudes[0] + (i / height) * (latitudes[1] - latitudes[0])
-                    longitude = longitudes[0] + (j / width) * (longitudes[1] - longitudes[0])
-                    # Add a row to the DataFrame
-                    data.append([latitude, longitude, "forestfire"])
+                if augmentation_type == "wildfire":
+                    if (pixel == [0, 0, 255]).all(): #bgr
+                        # Convert pixel coordinates to latitude and longitude
+                        latitude = latitudes[0] + (i / height) * (latitudes[1] - latitudes[0])
+                        longitude = longitudes[0] + (j / width) * (longitudes[1] - longitudes[0])
+                        # Add a row to the DataFrame
+                        data.append([latitude, longitude, "forestfire"])
+                elif augmentation_type == "climate":
+                    if (pixel == [0, 0, 255]).all(): #bgr
+                        # Convert pixel coordinates to latitude and longitude
+                        latitude = latitudes[0] + (i / height) * (latitudes[1] - latitudes[0])
+                        longitude = longitudes[0] + (j / width) * (longitudes[1] - longitudes[0])
+                        # Add a row to the DataFrame
+                        data.append([latitude, longitude, "climate"])
         
         #TODO: implement tempfile
         df = pd.DataFrame(data, columns=['latitude', 'longitude', 'status'])
-        jsonpath = os.path.join(image_dir, "augmented_coordinates", interval)
+        jsonpath = os.path.join(image_dir, "augmented_coordinates", image_path)
         os.makedirs(os.path.dirname(jsonpath), exist_ok=True)
         df.to_json(jsonpath, orient="index") 
         logger.info(f"Augmented JSON saved to: {jsonpath}")
@@ -207,7 +338,6 @@ def augment_images(logger: Logger, job_id: int, tracer_id:str, scraped_data_repo
             relative_path=relative_path,
         )
 
-        current_data = media_data
         
         try:
             scraped_data_repository.register_scraped_json(
@@ -221,7 +351,7 @@ def augment_images(logger: Logger, job_id: int, tracer_id:str, scraped_data_repo
         output_data_list.append(media_data)
         #job.touch()
     
-        last_successful_data = media_data
+     
 
     return output_data_list
 
@@ -240,6 +370,7 @@ def scrape(
     start_date: str,
     end_date: str,
     image_dir: str,
+    augmentation_type: str,
     resolution: int
 
 
@@ -273,9 +404,9 @@ def scrape(
             try:
                 # Create an instance of SentinelHubPipelineElement with the request data
                 coords_wgs84 = (long_left,lat_down,long_right, lat_up)
-                evalscript_true_color = get_satellite_bands_config()
-                output_data_list = get_images(logger, job_id, tracer_id, scraped_data_repository, output_data_list, protocol, coords_wgs84, evalscript_true_color, config, start_date, end_date, resolution, image_dir)
-                output_data_list = augment_images(logger, job_id, tracer_id, scraped_data_repository, output_data_list, protocol, coords_wgs84, image_dir)
+                evalscript_bands_config = get_satellite_bands_config(augmentation_type=augmentation_type)
+                output_data_list = get_images(logger, job_id, tracer_id, scraped_data_repository, output_data_list, protocol, coords_wgs84, evalscript_bands_config, config, start_date, end_date, resolution, image_dir, augmentation_type)
+                output_data_list = augment_images(logger, job_id, tracer_id, scraped_data_repository, output_data_list, protocol, coords_wgs84, image_dir, augmentation_type)
 
                 # Calculate response time
                 response_time = time.time() - start_time
@@ -302,7 +433,10 @@ def scrape(
             job_state = BaseJobState.FINISHED
             #job.touch()
             logger.info(f"{job_id}: Job finished")
-            shutil.rmtree(image_dir)
+            try:
+                shutil.rmtree(image_dir)
+            except Exception as e:
+                logger.warning("Could not delete tmp directory, exiting")
             return JobOutput(
                 job_state=job_state,
                 tracer_id=tracer_id,
