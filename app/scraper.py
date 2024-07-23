@@ -135,7 +135,6 @@ def get_images(logger: Logger, job_id: int, tracer_id: str, scraped_data_reposit
             data_name = sanitize_filename(f"{interval}_masked_{image_hash}")
             relative_path = f"sentinel/{tracer_id}/{job_id}/masked/{data_name}.png"
 
-        
             media_data = KernelPlancksterSourceData(
                 name=data_name,
                 protocol=protocol,
@@ -284,11 +283,7 @@ def scrape(
     evalscript_truecolor_path:str,
     augmentation_type: str,
     resolution: int
-
-
 ) -> JobOutput:
-
-
     try:
         logger = logging.getLogger(__name__)
         logging.basicConfig(level=log_level)
@@ -320,27 +315,18 @@ def scrape(
                 # Calculate response time
                 response_time = time.time() - start_time
                 response_data = {
-                    "message": f"Pipeline processing completed",
+                    "message": "Pipeline processing completed",
                     "response_time": f"{response_time:.2f} seconds"
                 }
-        
+
             except Exception as e:
                 logger.error(f"Error in processing pipeline: {e}")
-                #raise HTTPException(status_code=500, detail="Internal server error occurred.")
                 job_state = BaseJobState.FAILED
                 logger.error(
-                    f"{job_id}: Unable to scrape data. Error:\n{error}\nJob with tracer_id {tracer_id} failed.\nLast successful data: {last_successful_data}\nCurrent data: \"{current_data}\", job_state: \"{job_state}\""
+                    f"{job_id}: Unable to scrape data. Error:\n{e}\nJob with tracer_id {tracer_id} failed.\nLast successful data: {last_successful_data}\nCurrent data: {current_data}, job_state: {job_state}"
                 )
-                #job.messages.append(f"Status: FAILED. Unable to scrape data. {error}")  # type: ignore
-                #job.touch()
-
-                # continue to scrape data if possible
-
-
-                
 
             job_state = BaseJobState.FINISHED
-            #job.touch()
             logger.info(f"{job_id}: Job finished")
             try:
                 shutil.rmtree(image_dir)
@@ -351,7 +337,6 @@ def scrape(
                 tracer_id=tracer_id,
                 source_data_list=output_data_list,
             )
-
 
     except Exception as error:
         logger.error(f"{job_id}: Unable to scrape data. Job with tracer_id {tracer_id} failed. Error:\n{error}")
