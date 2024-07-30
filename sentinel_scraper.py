@@ -91,7 +91,7 @@ if __name__ == "__main__":
 
     import argparse
 
-    parser = argparse.ArgumentParser(description="Scrape data from Sentinel HUB.")
+    parser = argparse.ArgumentParser(description="Scrape data from Sentinel datacollection.")
 
 
     parser.add_argument(
