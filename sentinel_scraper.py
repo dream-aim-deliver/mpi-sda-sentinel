@@ -21,6 +21,7 @@ def main(
     image_dir: str,
     augmentation_type:str,
     resolution: int,
+    evalscript_bands_path:str,
     sentinel_client_id: str,
     sentinel_client_secret: str,
     kp_host: str,
@@ -77,6 +78,7 @@ def main(
         start_date=start_date,
         end_date=end_date,
         image_dir=image_dir,
+        evalscript_bands_path=evalscript_bands_path,
         augmentation_type=augmentation_type,
         resolution=resolution
     )
@@ -87,7 +89,7 @@ if __name__ == "__main__":
 
     import argparse
 
-    parser = argparse.ArgumentParser(description="Scrape data from Sentinel HUB.")
+    parser = argparse.ArgumentParser(description="Scrape data from Sentinel datacollection.")
 
 
     parser.add_argument(
@@ -159,6 +161,13 @@ if __name__ == "__main__":
         type=str,
         default="./.tmp",
         help="image dir",
+    )
+
+    parser.add_argument(
+        "--evalscript_bands_path", 
+        type=str, 
+        required=True, 
+        help="Path to Evalscript for Bands Configuration"
     )
 
     parser.add_argument(
@@ -241,6 +250,7 @@ if __name__ == "__main__":
         image_dir=args.image_dir,
         augmentation_type=args.augmentation_type,
         resolution=args.resolution,
+        evalscript_bands_path=args.evalscript_bands_path,
         sentinel_client_id=args.sentinel_client_id,
         sentinel_client_secret=args.sentinel_client_secret,
         kp_host=args.kp_host,
