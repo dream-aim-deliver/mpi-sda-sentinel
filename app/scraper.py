@@ -71,6 +71,7 @@ def get_images(logger: Logger, job_id: int, tracer_id: str, scraped_data_reposit
         dataset = DataCollection.SENTINEL2_L1C
     elif augmentation_type == "climate":
         dataset = DataCollection.SENTINEL5P
+    
 
     
 
