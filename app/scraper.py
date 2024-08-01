@@ -22,57 +22,9 @@ def load_evalscript(filepath: str) -> str:
     with open(filepath, 'r') as file:
         return file.read()
 
-def get_true_wildfire_config():
-     return """
-                function setup() {
-                return {
-                    input: ["B02", "B03", "B04", "B08", "B11", "B12", "dataMask"],
-                    output: { bands: 4 }
-                    };
-                }
-
-                function evaluatePixel(samples) {
-                    var NDWI=index(samples.B03, samples.B08); 
-                    var NDVI=index(samples.B08, samples.B04);
-                    var INDEX= ((samples.B11 - samples.B12) / (samples.B11 + samples.B12))+(samples.B08);
-
-                    if((INDEX>0.1)||(samples.B02>0.1)||(samples.B11<0.1)||(NDVI>0.3)||(NDWI > 0.1)){
-                        return[2.5*samples.B04, 2.5*samples.B03, 2.5*samples.B02, samples.dataMask]
-                    }
-                    else {
-                    return [1, 0, 0, samples.dataMask]
-                    }
-                }
-            """
-def get_true_climate_config():
-    return """
-        function setup() {
-            return {
-                input: ["CO", "dataMask"], 
-                output: { bands: 4 }
-            };
-        }
-
-        function evaluatePixel(samples) {
-            var CO_threshold = 0.15; // Define a threshold for high CO levels
-
-            // might need normalization
-            var CO_normalized = samples.CO / 0.15; // max CO value expected is 0.15
-
-            if (CO_normalized > 1) CO_normalized = 1; // Capped the value at 1 for safety
-            if (CO_normalized > 0.5) { // Above 50 of the threshold
-                return [1, 0, 0, samples.dataMask]; // Highlight in red for high CO
-            } else if (CO_normalized > 0.2) { // Between 20 and 50 of the threshold
-                return [1, 1, 0, samples.dataMask]; // Highlight in yellow for moderate CO
-            } else {
-                return [0, 1, 0, samples.dataMask]; // Highlight in green for low CO
-            }
-        }
-    """
-
 def get_images(logger: Logger, job_id: int, tracer_id: str, scraped_data_repository: ScrapedDataRepository, 
                output_data_list: list[KernelPlancksterSourceData], protocol: ProtocolEnum, 
-               coords_wgs84: tuple[float, float, float, float], evalscript_bands_config: str, config: SHConfig, start_date: str, end_date: str, 
+               coords_wgs84: tuple[float, float, float, float], evalscript_bands_config: str, evalscript_truecolor:str, config: SHConfig, start_date: str, end_date: str, 
                resolution: int, image_dir: str, augmentation_type: str):
     """
     Retrieves images for each set of coordinates within the specified date range.
@@ -101,16 +53,14 @@ def get_images(logger: Logger, job_id: int, tracer_id: str, scraped_data_reposit
     coords_bbox = BBox(bbox=coords_wgs84, crs=CRS.WGS84)
     coords_size = bbox_to_dimensions(coords_bbox, resolution=resolution)
     date_intervals = date_range(start_date, end_date)
-    if augmentation_type == "wildfire":
-        evalscript_truecolor = get_true_wildfire_config()
-    elif augmentation_type == "climate":
-        evalscript_truecolor = get_true_climate_config()
+    evalscript_truecolor = evalscript_truecolor
     #logging.log(f"Image shape at {resolution} m resolution: {coords_size} pixels")
     dataset = None
     if augmentation_type == "wildfire":
         dataset = DataCollection.SENTINEL2_L1C
     elif augmentation_type == "climate":
         dataset = DataCollection.SENTINEL5P
+    
 
     
 
@@ -139,7 +89,7 @@ def get_images(logger: Logger, job_id: int, tracer_id: str, scraped_data_reposit
  
         if np.mean(image) != 0.0: #if image is not entirely blank
                         
-            #TODO: implment tempfile
+            
             image_filename = f"{interval}_{augmentation_type}_banded_config.png"
             image_path = os.path.join(image_dir, "banded_config", image_filename)
             os.makedirs(os.path.dirname(image_path), exist_ok=True)
@@ -274,6 +224,7 @@ def scrape(
     end_date: str,
     image_dir: str,
     evalscript_bands_path: str,
+    evalscript_truecolor_path:str,
     augmentation_type: str,
     resolution: int
 
@@ -299,19 +250,16 @@ def scrape(
             job_state = BaseJobState.RUNNING
             #job.touch()
 
-            data = []
-
-
-
-            
             start_time = time.time()  # Record start time for response time measurement
             try:
                 # Create an instance of SentinelHubPipelineElement with the request data
                 coords_wgs84 = (long_left,lat_down,long_right, lat_up)
                 evalscript_bands_config = load_evalscript(evalscript_bands_path)
+                evalscript_truecolor = load_evalscript(evalscript_truecolor_path)
                 logger.info(f"starting with augmentation_type: {augmentation_type}")
-                output_data_list = get_images(logger, job_id, tracer_id, scraped_data_repository, output_data_list, protocol, coords_wgs84, evalscript_bands_config, config, start_date, end_date, resolution, image_dir, augmentation_type)
-                output_data_list = augment_climate_images(image_dir,coords_wgs84) if augmentation_type == "climate" else augment_wildfire_images(image_dir,coords_wgs84)
+                output_data_list = get_images(logger, job_id, tracer_id, scraped_data_repository, output_data_list, protocol, coords_wgs84, evalscript_bands_config, evalscript_truecolor ,config, start_date, end_date, resolution, image_dir, augmentation_type)
+                output_data_list = augment_wildfire_images(job_id, tracer_id, image_dir, coords_wgs84, logger, protocol, scraped_data_repository,output_data_list) if augmentation_type == "wildfire" else augment_climate_images(job_id, tracer_id, image_dir, coords_wgs84, logger, protocol, scraped_data_repository,output_data_list) 
+
                 # Calculate response time
                 response_time = time.time() - start_time
                 response_data = {
