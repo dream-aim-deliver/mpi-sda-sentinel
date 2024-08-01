@@ -22,6 +22,7 @@ def main(
     augmentation_type:str,
     resolution: int,
     evalscript_bands_path:str,
+    evalscript_truecolor_path:str,
     sentinel_client_id: str,
     sentinel_client_secret: str,
     kp_host: str,
@@ -79,6 +80,7 @@ def main(
         end_date=end_date,
         image_dir=image_dir,
         evalscript_bands_path=evalscript_bands_path,
+        evalscript_truecolor_path=evalscript_truecolor_path,
         augmentation_type=augmentation_type,
         resolution=resolution
     )
@@ -171,6 +173,13 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
+        "--evalscript_truecolor_path",
+        type=str,
+        required=True,
+        help="Path to truecolor Evalscript file for augmentation"
+    )
+
+    parser.add_argument(
         "--augmentation_type",
         type=str,
         default="wildfire",
@@ -251,6 +260,7 @@ if __name__ == "__main__":
         augmentation_type=args.augmentation_type,
         resolution=args.resolution,
         evalscript_bands_path=args.evalscript_bands_path,
+        evalscript_truecolor_path=args.evalscript_truecolor_path,
         sentinel_client_id=args.sentinel_client_id,
         sentinel_client_secret=args.sentinel_client_secret,
         kp_host=args.kp_host,
