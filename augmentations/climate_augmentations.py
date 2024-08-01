@@ -5,13 +5,20 @@ from sentinelhub import SHConfig, BBox, CRS, DataCollection, SentinelHubRequest,
 from app.sdk.models import KernelPlancksterSourceData, BaseJobState, JobOutput, ProtocolEnum
 from app.sdk.scraped_data_repository import ScrapedDataRepository,  KernelPlancksterSourceData
 import json
+import numpy as np
 import pandas as pd
 import cv2
 import os , re
+from collections import Counter
 
-def sanitize_filename(filename):
-    # Replace disallowed characters with underscores
+def sanitize_filename(filename):   #helper function
     return re.sub(r'[^\w./]', '_', filename)
+
+def dominant_color(pixels):        #helper function
+    if len(pixels) == 0:
+        return [0, 0, 0]
+    color_counts = Counter(map(tuple, pixels))
+    return max(color_counts, key=color_counts.get)
 
 def augment_climate_images(job_id:str, tracer_id:str ,image_dir:str, coords_wgs84:tuple[float,float,float,float], logger:Logger, protocol:ProtocolEnum, scraped_data_repository : ScrapedDataRepository , output_data_list: list[KernelPlancksterSourceData]):
     latitudes = [coords_wgs84[1], coords_wgs84[3]]  
@@ -21,35 +28,39 @@ def augment_climate_images(job_id:str, tracer_id:str ,image_dir:str, coords_wgs8
         interval = os.path.splitext(image_path)[0]
         full_path = os.path.join(image_dir, "masked", image_path)
         image = cv2.imread(full_path)
-        # Extract image dimensions
         height, width, _ = image.shape
+    
+        # grid size
+        grid_size = 30
+        grid_height = height // grid_size
+        grid_width = width // grid_size
+    
         data = []
-        for i in range(height):
-            for j in range(width):
-                pixel = image[i, j]
-                if (pixel == [127,0,0]).all():  # dark blue
-                    latitude = latitudes[0] + (i / height) * (latitudes[1] - latitudes[0])
-                    longitude = longitudes[0] + (j / width) * (longitudes[1] - longitudes[0])
+        # Loop through each grid cell
+        for grid_row in range(grid_size):
+            for grid_col in range(grid_size):
+                # Get the pixel values within the current grid cell
+                cell_pixels = image[grid_row * grid_height: (grid_row + 1) * grid_height,
+                                grid_col * grid_width: (grid_col + 1) * grid_width]
+        
+                cell_pixels = cell_pixels.reshape(-1, 3)
+            
+                # Find the dominant color in the current grid cell
+                dominant_pixel = dominant_color(cell_pixels)
+                latitude = latitudes[0] + ((grid_row + 0.5) / grid_size) * (latitudes[1] - latitudes[0])
+                longitude = longitudes[0] + ((grid_col + 0.5) / grid_size) * (longitudes[1] - longitudes[0])
+            
+                if np.array_equal(dominant_pixel, [127, 0, 0]):  # dark blue
                     data.append([latitude, longitude, "lowest-CO"])
-                elif (pixel == [255,0,0]).all():  # blue
-                    latitude = latitudes[0] + (i / height) * (latitudes[1] - latitudes[0])
-                    longitude = longitudes[0] + (j / width) * (longitudes[1] - longitudes[0])
+                elif np.array_equal(dominant_pixel, [255, 0, 0]):  # blue
                     data.append([latitude, longitude, "low-CO"])
-                elif (pixel == [255,255,0]).all(): # cyan
-                    latitude = latitudes[0] + (i / height) * (latitudes[1] - latitudes[0])
-                    longitude = longitudes[0] + (j / width) * (longitudes[1] - longitudes[0])
+                elif np.array_equal(dominant_pixel, [255, 255, 0]):  # cyan
                     data.append([latitude, longitude, "moderately low-CO"])
-                elif (pixel == [255,255,255]).all(): #yellow
-                    latitude = latitudes[0] + (i / height) * (latitudes[1] - latitudes[0])
-                    longitude = longitudes[0] + (j / width) * (longitudes[1] - longitudes[0])
+                elif np.array_equal(dominant_pixel, [255, 255, 255]):  # yellow
                     data.append([latitude, longitude, "moderately high-CO"])
-                elif (pixel == [0,0,255]).all(): #red
-                    latitude = latitudes[0] + (i / height) * (latitudes[1] - latitudes[0])
-                    longitude = longitudes[0] + (j / width) * (longitudes[1] - longitudes[0])
+                elif np.array_equal(dominant_pixel, [0, 0, 255]):  # red
                     data.append([latitude, longitude, "high-CO"])
-                elif (pixel == [0,0,127]).all(): #dark red
-                    latitude = latitudes[0] + (i / height) * (latitudes[1] - latitudes[0])
-                    longitude = longitudes[0] + (j / width) * (longitudes[1] - longitudes[0])
+                elif np.array_equal(dominant_pixel, [0, 0, 127]):  # dark red
                     data.append([latitude, longitude, "highest-CO"])
 
         # Save data to JSON
