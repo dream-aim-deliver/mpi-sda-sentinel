@@ -71,12 +71,8 @@ def get_images(logger: Logger, job_id: int, tracer_id: str, scraped_data_reposit
         dataset = DataCollection.SENTINEL2_L1C
     elif augmentation_type == "climate":
         dataset = DataCollection.SENTINEL5P
-    
-
-    
 
     for interval in date_intervals:
-      
         try:
             request_bands_config = SentinelHubRequest(
                 evalscript=evalscript_bands_config,
@@ -191,18 +187,15 @@ def get_images(logger: Logger, job_id: int, tracer_id: str, scraped_data_reposit
                     relative_path=relative_path,
                 )
 
-            try:
-                scraped_data_repository.register_scraped_photo(
-                    job_id=job_id,
-                    source_data=media_data,
-                    local_file_name=image_path,
-                )
-            except Exception as e:
-                logger.info("could not register file")
+                try:
+                    scraped_data_repository.register_scraped_photo(
+                        job_id=job_id,
+                        source_data=media_data,
+                        local_file_name=image_path,
+                    )
+                except Exception as e:
+                    logger.info("could not register file")
 
-            # output_data_list.append(media_data)
-           
-        
     return output_data_list
 
 
