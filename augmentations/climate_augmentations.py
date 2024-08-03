@@ -10,6 +10,7 @@ import pandas as pd
 import cv2
 import os , re
 from collections import Counter
+import hashlib
 
 def sanitize_filename(filename):   #helper function
     return re.sub(r'[^\w./]', '_', filename)
@@ -20,36 +21,39 @@ def dominant_color(pixels):        #helper function
     color_counts = Counter(map(tuple, pixels))
     return max(color_counts, key=color_counts.get)
 
-def augment_climate_images(job_id:str, tracer_id:str ,image_dir:str, coords_wgs84:tuple[float,float,float,float], logger:Logger, protocol:ProtocolEnum, scraped_data_repository : ScrapedDataRepository , output_data_list: list[KernelPlancksterSourceData]):
-    latitudes = [coords_wgs84[1], coords_wgs84[3]]  
+def get_image_hash(image):
+    """
+    Computes a hash for the given image.
+    """
+    hasher = hashlib.md5()
+    hasher.update(image.tobytes())
+    return hasher.hexdigest()
+
+def augment_climate_images(job_id: str, tracer_id: str, image_dir: str, coords_wgs84: tuple[float, float, float, float], logger: Logger, protocol: ProtocolEnum, scraped_data_repository: ScrapedDataRepository, output_data_list: list[KernelPlancksterSourceData]):
+    latitudes = [coords_wgs84[1], coords_wgs84[3]]
     longitudes = [coords_wgs84[0], coords_wgs84[2]]
 
     for image_path in os.listdir(os.path.join(image_dir, "masked")):
-        interval = os.path.splitext(image_path)[0]
+        interval = "_".join(image_path.split("_")[:-1])
+        image_hash = image_path.split("_")[-1].split(".")[0]
         full_path = os.path.join(image_dir, "masked", image_path)
         image = cv2.imread(full_path)
         height, width, _ = image.shape
-    
-        # grid size
-        grid_size = 30
+
+        grid_size = 5
         grid_height = height // grid_size
         grid_width = width // grid_size
-    
+
         data = []
-        # Loop through each grid cell
         for grid_row in range(grid_size):
             for grid_col in range(grid_size):
-                # Get the pixel values within the current grid cell
                 cell_pixels = image[grid_row * grid_height: (grid_row + 1) * grid_height,
-                                grid_col * grid_width: (grid_col + 1) * grid_width]
-        
+                                    grid_col * grid_width: (grid_col + 1) * grid_width]
                 cell_pixels = cell_pixels.reshape(-1, 3)
-            
-                # Find the dominant color in the current grid cell
                 dominant_pixel = dominant_color(cell_pixels)
                 latitude = latitudes[0] + ((grid_row + 0.5) / grid_size) * (latitudes[1] - latitudes[0])
                 longitude = longitudes[0] + ((grid_col + 0.5) / grid_size) * (longitudes[1] - longitudes[0])
-            
+
                 if np.array_equal(dominant_pixel, [127, 0, 0]):  # dark blue
                     data.append([latitude, longitude, "lowest-CO"])
                 elif np.array_equal(dominant_pixel, [255, 0, 0]):  # blue
@@ -62,43 +66,37 @@ def augment_climate_images(job_id:str, tracer_id:str ,image_dir:str, coords_wgs8
                     data.append([latitude, longitude, "high-CO"])
                 elif np.array_equal(dominant_pixel, [0, 0, 127]):  # dark red
                     data.append([latitude, longitude, "highest-CO"])
+                else:
+                    data.append([latitude, longitude, "unknown"])
 
-        # Save data to JSON
-        try:
-            if data:
-                df = pd.DataFrame(data, columns=['latitude', 'longitude', 'status'])
-                jsonpath = os.path.join(image_dir, "augmented_coordinates", interval)
-                os.makedirs(os.path.dirname(jsonpath), exist_ok=True)
-                df.to_json(jsonpath, orient="index") 
-                logger.info(f"Augmented JSON saved to: {jsonpath}")
+        if data:
+            df = pd.DataFrame(data, columns=["latitude", "longitude", "CO_level"])
+            jsonpath = os.path.join(image_dir, "augmented_coordinates", interval)
+            os.makedirs(os.path.dirname(jsonpath), exist_ok=True)
+            df.to_json(jsonpath, orient="index")
+            logger.info(f"Augmented Climate Data saved to: {jsonpath}")
 
-                # Sanitize the interval to create a valid filename
-                sanitized_interval = sanitize_filename(interval)
-                
-                data_name = str(sanitized_interval).strip("()").replace("-", "_").replace(",", "_").replace("'", "").replace(" ", "_")
-                relative_path = f"sentinel/{tracer_id}/{job_id}/augmented/{data_name}.json"
-        
+            # Sanitize the interval to create a valid filename
+            sanitized_interval = sanitize_filename(interval)
 
-    
-                media_data = KernelPlancksterSourceData(
-                              name=data_name,
-                              protocol=protocol,
-                              relative_path=relative_path,
-                            )
-                
-        except Exception as e:
-            logger.error(e)
+            data_name = f"{sanitized_interval}_climate_{image_hash}"
+            relative_path = f"sentinel/{tracer_id}/{job_id}/augmented-coordinates/{data_name}.json"
 
-        try:
-            scraped_data_repository.register_scraped_json(
-                job_id=job_id,
-                source_data=media_data,
-                local_file_name=jsonpath,
+            media_data = KernelPlancksterSourceData(
+                name=data_name,
+                protocol=protocol,
+                relative_path=relative_path,
             )
-        except Exception as e:
-            logger.info("could not register file")
 
-        output_data_list.append(media_data)
-        #job.touch()
+            try:
+                scraped_data_repository.register_scraped_json(
+                    job_id=job_id,
+                    source_data=media_data,
+                    local_file_name=jsonpath,
+                )
+            except Exception as e:
+                logger.info("could not register file")
+
+            output_data_list.append(media_data)
 
     return output_data_list
