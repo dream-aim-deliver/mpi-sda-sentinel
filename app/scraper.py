@@ -270,4 +270,4 @@ def scrape(
             shutil.rmtree(image_dir)
         except Exception as e:
             logger.warning("Could not delete tmp directory, exiting")
-        #job.messages.append(f"Status: FAILED. Unable to scrape data. {e}")
+        
