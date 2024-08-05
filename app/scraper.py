@@ -4,8 +4,8 @@ from typing import List
 from sentinelhub import SHConfig, BBox, CRS, DataCollection, SentinelHubRequest, bbox_to_dimensions, MimeType
 from app.sdk.models import KernelPlancksterSourceData, BaseJobState, JobOutput, ProtocolEnum
 from app.sdk.scraped_data_repository import ScrapedDataRepository,  KernelPlancksterSourceData
-from augmentations.climate_augmentations import augment_climate_images
-from augmentations.wildfire_augmentations import augment_wildfire_images
+from augmentations.climate_augmentations import augment_climate_images,get_image_hash
+from augmentations.wildfire_augmentations import augment_wildfire_images, sanitize_filename
 import time
 import os
 import json
@@ -17,14 +17,16 @@ from numpy import ndarray
 import numpy as np
 import cv2
 import shutil
+import hashlib
 
 def load_evalscript(filepath: str) -> str:
     with open(filepath, 'r') as file:
         return file.read()
 
+
 def get_images(logger: Logger, job_id: int, tracer_id: str, scraped_data_repository: ScrapedDataRepository, 
                output_data_list: list[KernelPlancksterSourceData], protocol: ProtocolEnum, 
-               coords_wgs84: tuple[float, float, float, float], evalscript_bands_config: str, evalscript_truecolor:str, config: SHConfig, start_date: str, end_date: str, 
+               coords_wgs84: tuple[float, float, float, float], evalscript_bands_config: str, evalscript_truecolor: str, config: SHConfig, start_date: str, end_date: str, 
                resolution: int, image_dir: str, augmentation_type: str):
     """
     Retrieves images for each set of coordinates within the specified date range.
@@ -53,19 +55,13 @@ def get_images(logger: Logger, job_id: int, tracer_id: str, scraped_data_reposit
     coords_bbox = BBox(bbox=coords_wgs84, crs=CRS.WGS84)
     coords_size = bbox_to_dimensions(coords_bbox, resolution=resolution)
     date_intervals = date_range(start_date, end_date)
-    evalscript_truecolor = evalscript_truecolor
-    #logging.log(f"Image shape at {resolution} m resolution: {coords_size} pixels")
     dataset = None
     if augmentation_type == "wildfire":
         dataset = DataCollection.SENTINEL2_L1C
     elif augmentation_type == "climate":
         dataset = DataCollection.SENTINEL5P
-    
-
-    
 
     for interval in date_intervals:
-      
         try:
             request_bands_config = SentinelHubRequest(
                 evalscript=evalscript_bands_config,
@@ -73,141 +69,111 @@ def get_images(logger: Logger, job_id: int, tracer_id: str, scraped_data_reposit
                 responses=[SentinelHubRequest.output_response("default", MimeType.PNG)],
                 bbox=coords_bbox, size=coords_size, config=config
             )
-
-        except Exception as e:
-            logger.warn(e)
-        
-        data = None
-        try:
             data = request_bands_config.get_data()
         except Exception as e:
-            logger.warning(e)
+            logger.warn(e)
+            continue
 
-        image = None
-        if len(data)> 0:
+        if data:
             image = data[0]
- 
-        if np.mean(image) != 0.0: #if image is not entirely blank
-                        
-            
-            image_filename = f"{interval}_{augmentation_type}_banded_config.png"
-            image_path = os.path.join(image_dir, "banded_config", image_filename)
-            os.makedirs(os.path.dirname(image_path), exist_ok=True)
-            save_image(image, image_path, factor=1.5/255, clip_range=(0, 1))
-            logger.info(f"Configured Bands Image saved to: {image_path}")
+            if np.mean(image) != 0.0:  # if image is not entirely blank
+                image_hash = get_image_hash(image)
+                image_filename = f"{interval}_{augmentation_type}_banded_config_{image_hash}.png"
+                image_path = os.path.join(image_dir, "banded_config", image_filename)
+                os.makedirs(os.path.dirname(image_path), exist_ok=True)
+                save_image(image, image_path, factor=1.5/255, clip_range=(0, 1))
+                logger.info(f"Configured Bands Image saved to: {image_path}")
 
-            
-            data_name = str(interval).strip("()").replace("-","_").replace(",","_").replace("\'","").replace(" ","_") + "_" + augmentation_type + "_banded_config"
-            relative_path = f"sentinel/{tracer_id}/{job_id}/banded_config/{data_name}.png"
+                data_name = sanitize_filename(f"{interval}_{augmentation_type}_banded_config_{image_hash}")
+                relative_path = f"sentinel/{tracer_id}/{job_id}/banded_config/{data_name}.png"
 
-        
-            media_data = KernelPlancksterSourceData(
-                name=data_name,
-                protocol=protocol,
-                relative_path=relative_path,
-            )
-
-            try:
-                scraped_data_repository.register_scraped_photo(
-                    job_id=job_id,
-                    source_data=media_data,
-                    local_file_name=image_path,
+                media_data = KernelPlancksterSourceData(
+                    name=data_name,
+                    protocol=protocol,
+                    relative_path=relative_path,
                 )
-            except Exception as e:
-                logger.info("could not register file")
 
-            output_data_list.append(media_data)
-            #job.touch()
-            
+                try:
+                    scraped_data_repository.register_scraped_photo(
+                        job_id=job_id,
+                        source_data=media_data,
+                        local_file_name=image_path,
+                    )
+                except Exception as e:
+                    logger.info("could not register file")
 
-           
+                output_data_list.append(media_data)
 
-        
+                image_filename = f"{interval}_{augmentation_type}_masked_{image_hash}.png"
+                image_path = os.path.join(image_dir, "masked", image_filename)
+                os.makedirs(os.path.dirname(image_path), exist_ok=True)
+                save_image(image, image_path, factor=255/255, clip_range=(0, 1))
+                logger.info(f"Masked Image saved to: {image_path}")
 
-            image_filename = f"{interval}_{augmentation_type}_masked.png"
-            image_path = os.path.join(image_dir, "masked", image_filename)
-            os.makedirs(os.path.dirname(image_path), exist_ok=True)
-            save_image(image, image_path, factor=255/255, clip_range=(0, 1))
-            logger.info(f"Masked Image saved to: {image_path}")
+                data_name = sanitize_filename(f"{interval}_{augmentation_type}_masked_{image_hash}")
+                relative_path = f"sentinel/{tracer_id}/{job_id}/masked/{data_name}.png"
 
-            data_name = str(interval).strip("()").replace("-","_").replace(",","_").replace("\'","").replace(" ","_") + "_" + augmentation_type + "_masked"
-            
-            relative_path = f"sentinel/{tracer_id}/{job_id}/masked/{data_name}.png"
-
-        
-            media_data = KernelPlancksterSourceData(
-                name=data_name,
-                protocol=protocol,
-                relative_path=relative_path,
-            )
-
-            try:
-                scraped_data_repository.register_scraped_photo(
-                    job_id=job_id,
-                    source_data=media_data,
-                    local_file_name=image_path,
+                media_data = KernelPlancksterSourceData(
+                    name=data_name,
+                    protocol=protocol,
+                    relative_path=relative_path,
                 )
-            except Exception as e:
-                logger.info("could not register file")
 
-            output_data_list.append(media_data)
-           
+                try:
+                    scraped_data_repository.register_scraped_photo(
+                        job_id=job_id,
+                        source_data=media_data,
+                        local_file_name=image_path,
+                    )
+                except Exception as e:
+                    logger.info("could not register file")
+
+                output_data_list.append(media_data)
+
     for interval in date_intervals:
-      
-        try:
-        
-            request_truecolor = SentinelHubRequest(
+
+        if evalscript_truecolor:
+            try:
+                request_truecolor = SentinelHubRequest(
                 evalscript=evalscript_truecolor,
-                input_data=[SentinelHubRequest.input_data(data_collection= dataset, time_interval=interval)],
+                input_data=[SentinelHubRequest.input_data(data_collection=dataset, time_interval=interval)],
                 responses=[SentinelHubRequest.output_response("default", MimeType.PNG)],
                 bbox=coords_bbox, size=coords_size, config=config
             )
-        except Exception as e:
-            logger.warn(e)
-        
-        data = None
-        truecolor = None
-        try:
-            truecolor = request_truecolor.get_data()
-        except Exception as e:
-            logger.warning(e)
-
-        image_true_color = None
-        if len(truecolor) > 0:
-           image_true_color = truecolor[0]
-        if np.mean(image_true_color) != 0.0: #if image is not entirely blank
-           
-            image_filename = f"{interval}_{augmentation_type}_true_color.png"
-            image_path = os.path.join(image_dir, "true_color", image_filename)
-            os.makedirs(os.path.dirname(image_path), exist_ok=True)
-            save_image(image_true_color, image_path, factor=1.5/255, clip_range=(0, 1))
-            logger.info(f"True Color Image saved to: {image_path}")
-
-            
-            data_name = str(interval).strip("()").replace("-","_").replace(",","_").replace("\'","").replace(" ","_") + "_" + augmentation_type + "_true_color"
-            relative_path = f"sentinel/{tracer_id}/{job_id}/true_color/{data_name}.png"
-
-        
-            media_data = KernelPlancksterSourceData(
-                name=data_name,
-                protocol=protocol,
-                relative_path=relative_path,
-            )
-
-            try:
-                scraped_data_repository.register_scraped_photo(
-                    job_id=job_id,
-                    source_data=media_data,
-                    local_file_name=image_path,
-                )
+                truecolor = request_truecolor.get_data()
             except Exception as e:
-                logger.info("could not register file")
+                logger.warn(e)
+                continue
 
-            # output_data_list.append(media_data)
-           
         
-    return output_data_list
+            image_true_color = truecolor[0]
+            if np.mean(image_true_color) != 0.0:  # if image is not entirely blank
+                image_hash = get_image_hash(image_true_color)
+                image_filename = f"{interval}_{augmentation_type}_true_color_{image_hash}.png"
+                image_path = os.path.join(image_dir, "true_color", image_filename)
+                os.makedirs(os.path.dirname(image_path), exist_ok=True)
+                save_image(image_true_color, image_path, factor=1.5/255, clip_range=(0, 1))
+                logger.info(f"True Color Image saved to: {image_path}")
 
+                data_name = sanitize_filename(f"{interval}_{augmentation_type}_true_color_{image_hash}")
+                relative_path = f"sentinel/{tracer_id}/{job_id}/true_color/{data_name}.png"
+
+                media_data = KernelPlancksterSourceData(
+                    name=data_name,
+                    protocol=protocol,
+                    relative_path=relative_path,
+                )
+
+                try:
+                    scraped_data_repository.register_scraped_photo(
+                        job_id=job_id,
+                        source_data=media_data,
+                        local_file_name=image_path,
+                    )
+                except Exception as e:
+                    logger.info("could not register file")
+
+    return output_data_list
 
 
 def scrape(
@@ -255,7 +221,7 @@ def scrape(
                 # Create an instance of SentinelHubPipelineElement with the request data
                 coords_wgs84 = (long_left,lat_down,long_right, lat_up)
                 evalscript_bands_config = load_evalscript(evalscript_bands_path)
-                evalscript_truecolor = load_evalscript(evalscript_truecolor_path)
+                evalscript_truecolor = load_evalscript(evalscript_truecolor_path) if evalscript_truecolor_path else False
                 logger.info(f"starting with augmentation_type: {augmentation_type}")
                 output_data_list = get_images(logger, job_id, tracer_id, scraped_data_repository, output_data_list, protocol, coords_wgs84, evalscript_bands_config, evalscript_truecolor ,config, start_date, end_date, resolution, image_dir, augmentation_type)
                 output_data_list = augment_wildfire_images(job_id, tracer_id, image_dir, coords_wgs84, logger, protocol, scraped_data_repository,output_data_list) if augmentation_type == "wildfire" else augment_climate_images(job_id, tracer_id, image_dir, coords_wgs84, logger, protocol, scraped_data_repository,output_data_list) 
@@ -304,4 +270,4 @@ def scrape(
             shutil.rmtree(image_dir)
         except Exception as e:
             logger.warning("Could not delete tmp directory, exiting")
-        #job.messages.append(f"Status: FAILED. Unable to scrape data. {e}")
+        

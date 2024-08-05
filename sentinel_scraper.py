@@ -175,7 +175,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--evalscript_truecolor_path",
         type=str,
-        required=True,
+        required=False,
         help="Path to truecolor Evalscript file for augmentation"
     )
 
