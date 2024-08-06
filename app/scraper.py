@@ -15,7 +15,18 @@ from numpy import ndarray
 import numpy as np
 import cv2
 import tempfile
-import shutil
+import shutil,hashlib,re
+
+def sanitize_filename(filename):   #helper function
+    return re.sub(r'[^\w./]', '_', filename)
+
+def get_image_hash(image):
+    """
+    Computes a hash for the given image.
+    """
+    hasher = hashlib.md5()
+    hasher.update(image.tobytes())
+    return hasher.hexdigest()
 
 def get_satellite_bands_config() -> str:
         """
@@ -82,14 +93,15 @@ def get_images(logger: Logger, job_id: int, tracer_id:str, scraped_data_reposito
         if np.mean(image) != 0.0: #if image is not entirely blank
                         
             #TODO: implment tempfile
-            image_filename = f"{interval}.png"
+            image_hash = get_image_hash(image)
+            image_filename = f"{interval}_truecolor_{image_hash}.png"
             image_path = os.path.join(image_dir, "true_color", image_filename)
             os.makedirs(os.path.dirname(image_path), exist_ok=True)
             save_image(image, image_path, factor=1.5/255, clip_range=(0, 1))
             logger.info(f"True color Image saved to: {image_path}")
 
             
-            data_name = str(interval).strip("()").replace("-","_").replace(",","_").replace("\'","").replace(" ","_")
+            data_name = sanitize_filename(f"{interval}_truecolor_{image_hash}")
             relative_path = f"sentinel/{tracer_id}/{job_id}/true_color/{data_name}.png"
 
         
@@ -115,14 +127,14 @@ def get_images(logger: Logger, job_id: int, tracer_id:str, scraped_data_reposito
         
             last_successful_data = media_data
         
-            image_filename = f"{interval}.png"
+            
+            image_filename = f"{interval}_masked_{image_hash}.png"
             image_path = os.path.join(image_dir, "masked", image_filename)
             os.makedirs(os.path.dirname(image_path), exist_ok=True)
             save_image(image, image_path, factor=255/255, clip_range=(0, 1))
             logger.info(f"Masked Image saved to: {image_path}")
 
-            data_name = str(interval).strip("()").replace("-","_").replace(",","_").replace("\'","").replace(" ","_") 
-            
+            data_name = sanitize_filename(f"{interval}_masked_{image_hash}")
             relative_path = f"sentinel/{tracer_id}/{job_id}/masked/{data_name}.png"
 
         
@@ -159,6 +171,7 @@ def augment_images(logger: Logger, job_id: int, tracer_id:str, scraped_data_repo
 
     for image_path in os.listdir(os.path.join(image_dir,"masked")):
         interval = os.path.splitext(image_path)[0]
+        image_hash = image_path.split("_")[-1].split(".")[0]
         full_path = os.path.join(image_dir, "masked", image_path)
         image = cv2.imread(full_path)
         # Extract image dimensions
@@ -183,7 +196,7 @@ def augment_images(logger: Logger, job_id: int, tracer_id:str, scraped_data_repo
         os.makedirs(os.path.dirname(jsonpath), exist_ok=True)
         df.to_json(jsonpath, orient="index") 
         logger.info(f"Augmented JSON saved to: {jsonpath}")
-        data_name = str(interval).strip("()").replace("-","_").replace(",","_").replace("\'","").replace(" ","_") 
+        data_name = sanitize_filename(f"{interval}_augmented_{image_hash}")
 
         relative_path = f"sentinel/{tracer_id}/{job_id}/augmented/{data_name}.json"
 
