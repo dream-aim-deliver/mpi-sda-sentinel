@@ -313,5 +313,8 @@ def scrape(
     except Exception as error:
         logger.error(f"{job_id}: Unable to scrape data. Job with tracer_id {tracer_id} failed. Error:\n{error}")
         job_state = BaseJobState.FAILED
-        shutil.rmtree(image_dir)
+        try:
+            shutil.rmtree(image_dir)
+        except Exception as e:
+            print("could not delete .tmp dir")
         #job.messages.append(f"Status: FAILED. Unable to scrape data. {e}")
