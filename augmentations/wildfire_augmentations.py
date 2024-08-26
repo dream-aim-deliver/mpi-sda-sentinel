@@ -8,6 +8,7 @@ import json
 import pandas as pd
 import cv2
 import os , re
+import hashlib
 
 def sanitize_filename(filename):
     # Replace disallowed characters with underscores
