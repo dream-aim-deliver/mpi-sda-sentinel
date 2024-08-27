@@ -30,9 +30,16 @@ def get_image_hash(image):
     hasher.update(image.tobytes())
     return hasher.hexdigest()
 
-def load_evalscript(filepath: str) -> str:
-    with open(filepath, 'r') as file:
-        return file.read()
+def load_evalscript(source: str) -> str:
+    if source.startswith("http://") or source.startswith("https://"):
+        # Load from URL
+        response = requests.get(source)
+        response.raise_for_status()  # Raise an exception if the request failed
+        return response.text
+    else:
+        # Load from file
+        with open(source, 'r') as file:
+            return file.read()
 
 
 def get_images(logger: Logger, job_id: int, tracer_id: str, scraped_data_repository: ScrapedDataRepository, 
