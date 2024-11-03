@@ -1,0 +1,13 @@
+python sentinel_scraper.py \
+ --start_date=2023-8-8 \
+ --end_date=2023-8-30 \
+ --long_left=-156.708984 \
+ --lat_up=20.759645 \
+ --long_right=-156.299744 \
+ --lat_down=20.955027 \
+ --log-level="INFO" \
+ --kp_auth_token test123 --kp_host localhost --kp_port 8000 --kp_scheme http \
+ --sentinel_client_id YOUR CLIENT ID --sentinel_client_secret YOUR CLIENT SECRET \
+ --evalscript_bands_path "https://gist.githubusercontent.com/Rahul-7131/b02d5614401ba654904ff509039def15/raw/3867e78b12bf7d7dff44810c548ed20797b367ea/wildfire_evalscript.js" \
+ --evalscript_truecolor_path "https://gist.githubusercontent.com/Rahul-7131/b02d5614401ba654904ff509039def15/raw/3867e78b12bf7d7dff44810c548ed20797b367ea/truecolor_wildfire.js" \
+ --augmentation_type wildfire \

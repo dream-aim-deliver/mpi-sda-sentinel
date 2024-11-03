@@ -16,23 +16,20 @@ from models import PipelineRequestModel
 from numpy import ndarray
 import numpy as np
 import cv2
-import tempfile
-import shutil,hashlib,re
+import shutil
+import hashlib
+import requests
 
-def sanitize_filename(filename):   #helper function
-    return re.sub(r'[^\w./]', '_', filename)
-
-def get_image_hash(image):
-    """
-    Computes a hash for the given image.
-    """
-    hasher = hashlib.md5()
-    hasher.update(image.tobytes())
-    return hasher.hexdigest()
-
-def load_evalscript(filepath: str) -> str:
-    with open(filepath, 'r') as file:
-        return file.read()
+def load_evalscript(source: str) -> str:
+    if source.startswith("http://") or source.startswith("https://"):
+        # Load from URL
+        response = requests.get(source)
+        response.raise_for_status()  # Raise an exception if the request failed
+        return response.text
+    else:
+        # Load from file
+        with open(source, 'r') as file:
+            return file.read()
 
 
 def get_images(logger: Logger, job_id: int, tracer_id: str, scraped_data_repository: ScrapedDataRepository, 
@@ -87,27 +84,22 @@ def get_images(logger: Logger, job_id: int, tracer_id: str, scraped_data_reposit
 
         if data:
             image = data[0]
- 
-        if np.mean(image) != 0.0: #if image is not entirely blank
-                        
-            #TODO: implment tempfile
-            image_hash = get_image_hash(image)
-            image_filename = f"{interval}_truecolor_{image_hash}.png"
-            image_path = os.path.join(image_dir, "true_color", image_filename)
-            os.makedirs(os.path.dirname(image_path), exist_ok=True)
-            save_image(image, image_path, factor=1.5/255, clip_range=(0, 1))
-            logger.info(f"Configured Bands Image saved to: {image_path}")
+            if np.mean(image) != 0.0:  # if image is not entirely blank
+                image_hash = get_image_hash(image)
+                image_filename = f"{interval}_{augmentation_type}_banded_config_{image_hash}.png"
+                image_path = os.path.join(image_dir, "banded_config", image_filename)
+                os.makedirs(os.path.dirname(image_path), exist_ok=True)
+                save_image(image, image_path, factor=1.5/255, clip_range=(0, 1))
+                logger.info(f"Configured Bands Image saved to: {image_path}")
 
-            
-            data_name = sanitize_filename(f"{interval}_truecolor_{image_hash}")
-            relative_path = f"sentinel/{tracer_id}/{job_id}/true_color/{data_name}.png"
+                data_name = sanitize_filename(f"{interval}_{augmentation_type}_banded_config_{image_hash}")
+                relative_path = f"sentinel/{tracer_id}/{job_id}/banded_config/{data_name}.png"
 
-        
-            media_data = KernelPlancksterSourceData(
-                name=data_name,
-                protocol=protocol,
-                relative_path=relative_path,
-            )
+                media_data = KernelPlancksterSourceData(
+                    name=data_name,
+                    protocol=protocol,
+                    relative_path=relative_path,
+                )
 
                 try:
                     scraped_data_repository.register_scraped_photo(
@@ -118,29 +110,22 @@ def get_images(logger: Logger, job_id: int, tracer_id: str, scraped_data_reposit
                 except Exception as e:
                     logger.info("could not register file")
 
-            output_data_list.append(media_data)
-            #job.touch()
-            
+                output_data_list.append(media_data)
 
-           
+                image_filename = f"{interval}_{augmentation_type}_masked_{image_hash}.png"
+                image_path = os.path.join(image_dir, "masked", image_filename)
+                os.makedirs(os.path.dirname(image_path), exist_ok=True)
+                save_image(image, image_path, factor=255/255, clip_range=(0, 1))
+                logger.info(f"Masked Image saved to: {image_path}")
 
-        
-            
-            image_filename = f"{interval}_masked_{image_hash}.png"
-            image_path = os.path.join(image_dir, "masked", image_filename)
-            os.makedirs(os.path.dirname(image_path), exist_ok=True)
-            save_image(image, image_path, factor=255/255, clip_range=(0, 1))
-            logger.info(f"Masked Image saved to: {image_path}")
+                data_name = sanitize_filename(f"{interval}_{augmentation_type}_masked_{image_hash}")
+                relative_path = f"sentinel/{tracer_id}/{job_id}/masked/{data_name}.png"
 
-            data_name = sanitize_filename(f"{interval}_masked_{image_hash}")
-            relative_path = f"sentinel/{tracer_id}/{job_id}/masked/{data_name}.png"
-
-        
-            media_data = KernelPlancksterSourceData(
-                name=data_name,
-                protocol=protocol,
-                relative_path=relative_path,
-            )
+                media_data = KernelPlancksterSourceData(
+                    name=data_name,
+                    protocol=protocol,
+                    relative_path=relative_path,
+                )
 
                 try:
                     scraped_data_repository.register_scraped_photo(
@@ -187,82 +172,14 @@ def get_images(logger: Logger, job_id: int, tracer_id: str, scraped_data_reposit
                     relative_path=relative_path,
                 )
 
-            try:
-                scraped_data_repository.register_scraped_photo(
-                    job_id=job_id,
-                    source_data=media_data,
-                    local_file_name=image_path,
-                )
-            except Exception as e:
-                logger.info("could not register file")
-
-            # output_data_list.append(media_data)
-           
-        
-    return output_data_list
-
-
-        
-
-def augment_images(logger: Logger, job_id: int, tracer_id:str, scraped_data_repository: ScrapedDataRepository, output_data_list: list[KernelPlancksterSourceData], protocol: ProtocolEnum, coords_wgs84: tuple[float, float, float, float], image_dir: str, augmentation_type: str):
-    # Read the satellite image
-    latitudes = [coords_wgs84[1], coords_wgs84[3]]  
-    longitudes = [coords_wgs84[0], coords_wgs84[2]]
-
-    for image_path in os.listdir(os.path.join(image_dir,"masked")):
-        interval = os.path.splitext(image_path)[0]
-        image_hash = image_path.split("_")[-1].split(".")[0]
-        full_path = os.path.join(image_dir, "masked", image_path)
-        image = cv2.imread(full_path)
-        # Extract image dimensions
-        height, width, _ = image.shape
-        data = []
-        # Loop through the image and check for pure red pixels
-        for i in range(height):
-            for j in range(width):
-                # Extract pixel values
-                pixel = image[i, j]
-                if augmentation_type == "wildfire":
-                    fire_coords.extend(process_wildfire_image(image, coords))
-                elif augmentation_type == "climate":
-                    if (pixel == [0, 0, 255]).all(): #bgr
-                        # Convert pixel coordinates to latitude and longitude
-                        latitude = latitudes[0] + (i / height) * (latitudes[1] - latitudes[0])
-                        longitude = longitudes[0] + (j / width) * (longitudes[1] - longitudes[0])
-                        # Add a row to the DataFrame
-                        data.append([latitude, longitude, "climate"])
-        
-        #TODO: implement tempfile
-        df = pd.DataFrame(data, columns=['latitude', 'longitude', 'status'])
-        jsonpath = os.path.join(image_dir, "augmented_coordinates", image_path)
-        os.makedirs(os.path.dirname(jsonpath), exist_ok=True)
-        df.to_json(jsonpath, orient="index") 
-        logger.info(f"Augmented JSON saved to: {jsonpath}")
-        data_name = sanitize_filename(f"{interval}_augmented_{image_hash}")
-
-        relative_path = f"sentinel/{tracer_id}/{job_id}/augmented/{data_name}.json"
-
-    
-        media_data = KernelPlancksterSourceData(
-            name=data_name,
-            protocol=protocol,
-            relative_path=relative_path,
-        )
-
-        
-        try:
-            scraped_data_repository.register_scraped_json(
-                job_id=job_id,
-                source_data=media_data,
-                local_file_name=jsonpath,
-            )
-        except Exception as e:
-            logger.info("could not register file")
-
-        output_data_list.append(media_data)
-        #job.touch()
-    
-     
+                try:
+                    scraped_data_repository.register_scraped_photo(
+                        job_id=job_id,
+                        source_data=media_data,
+                        local_file_name=image_path,
+                    )
+                except Exception as e:
+                    logger.info("could not register file")
 
     return output_data_list
 
@@ -357,7 +274,8 @@ def scrape(
         logger.error(f"{job_id}: Unable to scrape data. Job with tracer_id {tracer_id} failed. Error:\n{error}")
         job_state = BaseJobState.FAILED
         try:
+            logger.warning("deleting tmp directory")
             shutil.rmtree(image_dir)
         except Exception as e:
-            print("could not delete .tmp dir")
-        #job.messages.append(f"Status: FAILED. Unable to scrape data. {e}")
+            logger.warning("Could not delete tmp directory, exiting")
+        
