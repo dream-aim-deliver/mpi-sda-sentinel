@@ -9,7 +9,6 @@ Original file is located at
 from typing import Any, Optional, Tuple
 import matplotlib.pyplot as plt
 import numpy as np
-from numpy import ndarray
 from datetime import datetime, timedelta
 
 

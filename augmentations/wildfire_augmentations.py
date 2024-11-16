@@ -1,13 +1,9 @@
 from logging import Logger
-import logging
-from typing import List
-from sentinelhub import SHConfig, BBox, CRS, DataCollection, SentinelHubRequest, bbox_to_dimensions, MimeType
-from app.sdk.models import KernelPlancksterSourceData, BaseJobState, JobOutput, ProtocolEnum
+from app.sdk.models import KernelPlancksterSourceData, ProtocolEnum
 from app.sdk.scraped_data_repository import ScrapedDataRepository,  KernelPlancksterSourceData
-import json
 import pandas as pd
 import cv2
-import os , re
+import os, re
 import hashlib
 
 def sanitize_filename(filename):
@@ -26,6 +22,7 @@ def augment_wildfire_images(job_id: str, tracer_id: str, image_dir: str, coords_
     latitudes = [coords_wgs84[1], coords_wgs84[3]]
     longitudes = [coords_wgs84[0], coords_wgs84[2]]
 
+    os.makedirs(os.path.join(image_dir, "masked"), exist_ok=True)
     for image_path in os.listdir(os.path.join(image_dir, "masked")):
         interval = "_".join(image_path.split("_")[:-1])
         image_hash = image_path.split("_")[-1].split(".")[0]

@@ -1,12 +1,11 @@
 import logging
+import sys
 from app.scraper import scrape
-from app.sdk.models import KernelPlancksterSourceData, BaseJobState
 from app.sdk.scraped_data_repository import ScrapedDataRepository
 from app.setup import setup
 
 
 from app.setup_scraping_client import get_scraping_config
-from sentinelhub import SHConfig
 
 
 def main(
@@ -32,38 +31,41 @@ def main(
     log_level: str = "WARNING",
 ) -> None:
 
-    logger = logging.getLogger(__name__)
-    logging.basicConfig(level=log_level)
+    try:
+        logger = logging.getLogger(__name__)
+        logging.basicConfig(level=log_level)
 
-  
-    if not all([job_id, tracer_id, long_left, lat_down, long_right, lat_up, start_date, end_date]):
-        logger.error(f"{job_id}: job_id, tracer_id, coordinates, and date range must all be set.") 
-        raise ValueError("job_id, tracer_id, coordinates, and date range must all be set.")
-
-
-    kernel_planckster, protocol, file_repository = setup(
-        job_id=job_id,
-        logger=logger,
-        kp_auth_token=kp_auth_token,
-        kp_host=kp_host,
-        kp_port=kp_port,
-        kp_scheme=kp_scheme,
-    )
-
-    scraped_data_repository = ScrapedDataRepository(
-        protocol=protocol,
-        kernel_planckster=kernel_planckster,
-        file_repository=file_repository,
-    )
-
-    sentinel_config = get_scraping_config(
-        job_id=job_id,
-        logger=logger,
-        sentinel_client_id=sentinel_client_id,
-        sentinel_client_secret=sentinel_client_secret
-    )
+    
+        if not all([job_id, tracer_id, long_left, lat_down, long_right, lat_up, start_date, end_date]):
+            logger.error(f"{job_id}: job_id, tracer_id, coordinates, and date range must all be set.") 
+            raise ValueError("job_id, tracer_id, coordinates, and date range must all be set.")
 
 
+        kernel_planckster, protocol, file_repository = setup(
+            job_id=job_id,
+            logger=logger,
+            kp_auth_token=kp_auth_token,
+            kp_host=kp_host,
+            kp_port=kp_port,
+            kp_scheme=kp_scheme,
+        )
+
+        scraped_data_repository = ScrapedDataRepository(
+            protocol=protocol,
+            kernel_planckster=kernel_planckster,
+            file_repository=file_repository,
+        )
+
+        sentinel_config = get_scraping_config(
+            job_id=job_id,
+            logger=logger,
+            sentinel_client_id=sentinel_client_id,
+            sentinel_client_secret=sentinel_client_secret
+        )
+
+    except Exception as error:
+        logger.error(f"Unable to setup the scraper. Error: {error}")
+        sys.exit(1)
 
 
     scrape(
