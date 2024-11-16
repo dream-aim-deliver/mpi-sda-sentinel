@@ -68,7 +68,7 @@ def main(
         sys.exit(1)
 
 
-    scrape(
+    job_output = scrape(
         job_id=job_id,
         tracer_id=tracer_id,
         scraped_data_repository=scraped_data_repository,
@@ -86,6 +86,11 @@ def main(
         augmentation_type=augmentation_type,
         resolution=resolution
     )
+
+    logger.info(f"{job_id}: Scraper finished with state: {job_output.job_state.value}")
+
+    if job_output.job_state.value == "failed":
+        sys.exit(1)
 
 
 

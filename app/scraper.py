@@ -75,7 +75,7 @@ def get_images(logger: Logger, job_id: int, tracer_id: str, scraped_data_reposit
             data = request_bands_config.get_data()
         except InvalidClientError as e:
             logger.error(f"Sentinel Hub client error: {e}")
-            sys.exit(1)
+            raise e
 
         except Exception as e:
             logger.warning(e)
@@ -239,6 +239,9 @@ def scrape(
                     "message": f"Pipeline processing completed",
                     "response_time": f"{response_time:.2f} seconds"
                 }
+
+                job_state = BaseJobState.FINISHED
+                logger.info(f"{job_id}: Job finished")
         
             except Exception as e:
                 logger.error(f"Error in processing pipeline: {e}")
@@ -250,21 +253,17 @@ def scrape(
                     f"Last successful data: {last_successful_data} -- Current data: \"{current_data}\" -- job_state: \"{job_state}\""
                 )
 
-
+            finally:
+                try:
+                    shutil.rmtree(image_dir)
+                except Exception as e:
+                    logger.warning(f"Could not delete tmp directory, exiting: {e}")
                 
-
-            job_state = BaseJobState.FINISHED
-            #job.touch()
-            logger.info(f"{job_id}: Job finished")
-            try:
-                shutil.rmtree(image_dir)
-            except Exception as e:
-                logger.warning("Could not delete tmp directory, exiting")
-            return JobOutput(
-                job_state=job_state,
-                tracer_id=tracer_id,
-                source_data_list=output_data_list,
-            )
+                return JobOutput(
+                    job_state=job_state,
+                    tracer_id=tracer_id,
+                    source_data_list=output_data_list,
+                )
 
 
     except Exception as error:
@@ -274,5 +273,11 @@ def scrape(
             logger.warning("deleting tmp directory")
             shutil.rmtree(image_dir)
         except Exception as e:
-            logger.warning("Could not delete tmp directory, exiting")
+            logger.warning(f"Could not delete tmp directory, exiting: {e}")
+
+        return JobOutput(
+            job_state=job_state,
+            tracer_id=tracer_id,
+            source_data_list=[],
+        )
         
