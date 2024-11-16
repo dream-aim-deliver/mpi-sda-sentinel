@@ -1,4 +1,5 @@
 from logging import Logger
+import sys
 from sentinelhub import SHConfig
 
 def get_scraping_config(
@@ -24,4 +25,4 @@ def get_scraping_config(
 
     except Exception as error:
         logger.error(f"{job_id}: Unable to setup the Sentinel client. Error:\n{error}")
-        raise error
+        sys.exit(1)

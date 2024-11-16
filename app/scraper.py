@@ -1,3 +1,5 @@
+import sys
+from oauthlib.oauth2.rfc6749.errors import InvalidClientError
 from logging import Logger
 import logging
 from typing import List
@@ -8,16 +10,9 @@ from augmentations.climate_augmentations import augment_climate_images,get_image
 from augmentations.wildfire_augmentations import augment_wildfire_images, sanitize_filename
 import time
 import os
-import json
-import pandas as pd
-from PIL import Image
 from utils import date_range, save_image
-from models import PipelineRequestModel
-from numpy import ndarray
 import numpy as np
-import cv2
 import shutil
-import hashlib
 import requests
 
 def load_evalscript(source: str) -> str:
@@ -78,8 +73,12 @@ def get_images(logger: Logger, job_id: int, tracer_id: str, scraped_data_reposit
                 bbox=coords_bbox, size=coords_size, config=config
             )
             data = request_bands_config.get_data()
+        except InvalidClientError as e:
+            logger.error(f"Sentinel Hub client error: {e}")
+            sys.exit(1)
+
         except Exception as e:
-            logger.warn(e)
+            logger.warning(e)
             continue
 
         if data:
@@ -243,15 +242,13 @@ def scrape(
         
             except Exception as e:
                 logger.error(f"Error in processing pipeline: {e}")
-                #raise HTTPException(status_code=500, detail="Internal server error occurred.")
                 job_state = BaseJobState.FAILED
                 logger.error(
-                    f"{job_id}: Unable to scrape data. Error:\n{error}\nJob with tracer_id {tracer_id} failed.\nLast successful data: {last_successful_data}\nCurrent data: \"{current_data}\", job_state: \"{job_state}\""
+                    f"{job_id}: Unable to scrape data. Error: {e}\nJob with tracer_id {tracer_id} failed."
                 )
-                #job.messages.append(f"Status: FAILED. Unable to scrape data. {error}")  # type: ignore
-                #job.touch()
-
-                # continue to scrape data if possible
+                logger.error(
+                    f"Last successful data: {last_successful_data} -- Current data: \"{current_data}\" -- job_state: \"{job_state}\""
+                )
 
 
                 
