@@ -1,11 +1,40 @@
+from datetime import datetime
 from logging import Logger
 import os
+import re
 from typing import Tuple
 
 from app.sdk.file_repository import FileRepository
 from app.sdk.kernel_plackster_gateway import KernelPlancksterGateway
 from app.sdk.models import ProtocolEnum
 
+def string_validator(value: str, arg_name: str) -> str:
+    value_error_flag = False
+    value_error_msg = ""
+
+    if value == "":
+        value_error_msg += f"The string must not be empty. "
+        raise ValueError(value_error_msg)
+
+    v2 = re.sub(r"[^a-zA-Z0-9_\./-]", "", value)
+    if value != v2:
+        value_error_flag = True
+        value_error_msg += f"The string  must contain only alphanumeric characters, underscores, slashes, and dots. Other characters are not allowed. Found: '{set(value) - set(v2)}' "
+
+    first_char = value[0]
+    if first_char == "/":
+        value_error_flag = True
+        value_error_msg += f"The string provided must not start with a slash. "
+
+    if value_error_flag:
+        value_error_msg += f"\nThe value for '{arg_name}' provided was: '{value}'"
+        raise ValueError(value_error_msg)
+
+    return value
+
+def datetime_parser(date_string: str) -> datetime:
+    dt = datetime.strptime(date_string, "%Y-%m-%dT%H:%M")
+    return dt
 
 def _setup_kernel_planckster(
     job_id: int,
