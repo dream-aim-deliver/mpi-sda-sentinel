@@ -1,12 +1,11 @@
 import logging
+import sys
 from app.scraper import scrape
-from app.sdk.models import KernelPlancksterSourceData, BaseJobState
 from app.sdk.scraped_data_repository import ScrapedDataRepository
 from app.setup import setup
 
 
 from app.setup_scraping_client import get_scraping_config
-from sentinelhub import SHConfig
 
 
 def main(
@@ -19,7 +18,10 @@ def main(
     start_date: str,
     end_date: str,
     image_dir: str,
+    augmentation_type:str,
     resolution: int,
+    evalscript_bands_path:str,
+    evalscript_truecolor_path:str,
     sentinel_client_id: str,
     sentinel_client_secret: str,
     kp_host: str,
@@ -29,41 +31,44 @@ def main(
     log_level: str = "WARNING",
 ) -> None:
 
-    logger = logging.getLogger(__name__)
-    logging.basicConfig(level=log_level)
+    try:
+        logger = logging.getLogger(__name__)
+        logging.basicConfig(level=log_level)
 
-  
-    if not all([job_id, tracer_id, long_left, lat_down, long_right, lat_up, start_date, end_date]):
-        logger.error(f"{job_id}: job_id, tracer_id, coordinates, and date range must all be set.") 
-        raise ValueError("job_id, tracer_id, coordinates, and date range must all be set.")
-
-
-    kernel_planckster, protocol, file_repository = setup(
-        job_id=job_id,
-        logger=logger,
-        kp_auth_token=kp_auth_token,
-        kp_host=kp_host,
-        kp_port=kp_port,
-        kp_scheme=kp_scheme,
-    )
-
-    scraped_data_repository = ScrapedDataRepository(
-        protocol=protocol,
-        kernel_planckster=kernel_planckster,
-        file_repository=file_repository,
-    )
-
-    sentinel_config = get_scraping_config(
-        job_id=job_id,
-        logger=logger,
-        sentinel_client_id=sentinel_client_id,
-        sentinel_client_secret=sentinel_client_secret
-    )
+    
+        if not all([job_id, tracer_id, long_left, lat_down, long_right, lat_up, start_date, end_date]):
+            logger.error(f"{job_id}: job_id, tracer_id, coordinates, and date range must all be set.") 
+            raise ValueError("job_id, tracer_id, coordinates, and date range must all be set.")
 
 
+        kernel_planckster, protocol, file_repository = setup(
+            job_id=job_id,
+            logger=logger,
+            kp_auth_token=kp_auth_token,
+            kp_host=kp_host,
+            kp_port=kp_port,
+            kp_scheme=kp_scheme,
+        )
+
+        scraped_data_repository = ScrapedDataRepository(
+            protocol=protocol,
+            kernel_planckster=kernel_planckster,
+            file_repository=file_repository,
+        )
+
+        sentinel_config = get_scraping_config(
+            job_id=job_id,
+            logger=logger,
+            sentinel_client_id=sentinel_client_id,
+            sentinel_client_secret=sentinel_client_secret
+        )
+
+    except Exception as error:
+        logger.error(f"Unable to setup the scraper. Error: {error}")
+        sys.exit(1)
 
 
-    scrape(
+    job_output = scrape(
         job_id=job_id,
         tracer_id=tracer_id,
         scraped_data_repository=scraped_data_repository,
@@ -76,8 +81,16 @@ def main(
         start_date=start_date,
         end_date=end_date,
         image_dir=image_dir,
+        evalscript_bands_path=evalscript_bands_path,
+        evalscript_truecolor_path=evalscript_truecolor_path,
+        augmentation_type=augmentation_type,
         resolution=resolution
     )
+
+    logger.info(f"{job_id}: Scraper finished with state: {job_output.job_state.value}")
+
+    if job_output.job_state.value == "failed":
+        sys.exit(1)
 
 
 
@@ -85,7 +98,7 @@ if __name__ == "__main__":
 
     import argparse
 
-    parser = argparse.ArgumentParser(description="Scrape data from a telegram channel.")
+    parser = argparse.ArgumentParser(description="Scrape data from Sentinel datacollection.")
 
 
     parser.add_argument(
@@ -160,6 +173,27 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
+        "--evalscript_bands_path", 
+        type=str, 
+        required=True, 
+        help="Path to Evalscript for Bands Configuration"
+    )
+
+    parser.add_argument(
+        "--evalscript_truecolor_path",
+        type=str,
+        required=False,
+        help="Path to truecolor Evalscript file for augmentation"
+    )
+
+    parser.add_argument(
+        "--augmentation_type",
+        type=str,
+        default="wildfire",
+        help="The augmentation type",
+    )
+
+    parser.add_argument(
         "--resolution",
         type=str,
         default=60,
@@ -230,7 +264,10 @@ if __name__ == "__main__":
         start_date=args.start_date,
         end_date=args.end_date,
         image_dir=args.image_dir,
+        augmentation_type=args.augmentation_type,
         resolution=args.resolution,
+        evalscript_bands_path=args.evalscript_bands_path,
+        evalscript_truecolor_path=args.evalscript_truecolor_path,
         sentinel_client_id=args.sentinel_client_id,
         sentinel_client_secret=args.sentinel_client_secret,
         kp_host=args.kp_host,
