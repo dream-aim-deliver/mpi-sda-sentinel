@@ -2,7 +2,7 @@ import logging
 import sys
 from app.scraper import scrape
 from app.sdk.scraped_data_repository import ScrapedDataRepository
-from app.setup import setup, string_validator
+from app.setup import datetime_parser,setup, string_validator
 
 
 from app.setup_scraping_client import get_scraping_config
@@ -18,8 +18,9 @@ def main(
     lat_up: float,
     start_date: str,
     end_date: str,
+    interval: int,
     image_dir: str,
-    augmentation_type:str,
+    dataset_name:str,
     resolution: int,
     evalscript_bands_path:str,
     evalscript_truecolor_path:str,
@@ -44,7 +45,7 @@ def main(
             "case_study_name": case_study_name,
             "job_id": job_id,
             "tracer_id": tracer_id,
-            "augmentation_type": augmentation_type,
+            "dataset_name": dataset_name,
         }
 
         logger.info(f"Validating string variables:  {string_variables}")
@@ -53,7 +54,9 @@ def main(
             string_validator(f"{value}", name)
 
         logger.info(f"String variables validated successfully!")
+        
 
+        logger.info(f"Setting up scraper for case study: {case_study_name}")
 
         kernel_planckster, protocol, file_repository = setup(
             job_id=job_id,
@@ -95,10 +98,11 @@ def main(
         sentinel_config=sentinel_config,
         start_date=start_date,
         end_date=end_date,
+        interval=interval,
         image_dir=image_dir,
         evalscript_bands_path=evalscript_bands_path,
         evalscript_truecolor_path=evalscript_truecolor_path,
-        augmentation_type=augmentation_type,
+        dataset_name=dataset_name,
         resolution=resolution
     )
 
@@ -187,6 +191,13 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
+        "--interval",
+        type=int,
+        default="60",
+        help="Time interval between screenshots, in minutes.",
+    )
+    
+    parser.add_argument(
         "--image_dir",
         type=str,
         default="./.tmp",
@@ -208,10 +219,10 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "--augmentation_type",
+        "--dataset_name",
         type=str,
-        default="wildfire",
-        help="The augmentation type",
+        default="SENTINEL5P",
+        help="dataset configuration",
     )
 
     parser.add_argument(
@@ -278,8 +289,9 @@ if __name__ == "__main__":
         lat_up=args.lat_up,
         start_date=args.start_date,
         end_date=args.end_date,
+        interval=args.interval,
         image_dir=args.image_dir,
-        augmentation_type=args.augmentation_type,
+        dataset_name=args.dataset_name,
         resolution=args.resolution,
         evalscript_bands_path=args.evalscript_bands_path,
         evalscript_truecolor_path=args.evalscript_truecolor_path,
