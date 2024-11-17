@@ -122,22 +122,22 @@ if __name__ == "__main__":
     parser.add_argument(
         "--case-study-name",
         type=str,
-        default="sentinel_scraper",
         help="The name of the case study",
+        required=True,
     )
 
     parser.add_argument(
         "--job-id",
         type=str,
-        default="1",
         help="The job id",
+        required=True,
     )
 
     parser.add_argument(
         "--tracer-id",
         type=str,
-        default="test",
         help="The tracer id",
+        required=True,
     )
 
     parser.add_argument(
@@ -179,22 +179,22 @@ if __name__ == "__main__":
     parser.add_argument(
         "--start_date",
         type=str,
-        default="2023-08-08",
         help="start date",
+        required=True,
     )
 
     parser.add_argument(
         "--end_date",
         type=str,
-        default="2023-08-30",
         help="end date",
+        required=True,
     )
 
     parser.add_argument(
         "--interval",
         type=int,
-        default="60",
-        help="Time interval between screenshots, in minutes.",
+        help="Time interval between scraping events, in minutes.",
+        required=True,
     )
     
     parser.add_argument(
@@ -249,29 +249,29 @@ if __name__ == "__main__":
     parser.add_argument(
         "--kp_host",
         type=str,
-        default="60",
         help="kp host",
+        required=True,
     )
 
     parser.add_argument(
         "--kp_port",
         type=int,
-        default="60",
         help="kp port",
+        required=True,
     )
 
     parser.add_argument(
         "--kp_auth_token",
         type=str,
-        default="60",
         help="kp auth token",
+        required=True,
         )
 
     parser.add_argument(
         "--kp_scheme",
         type=str,
-        default="http",
         help="kp scheme",
+        required=True,
         )
 
 
