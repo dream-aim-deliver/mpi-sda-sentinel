@@ -4,6 +4,7 @@ import httpx
 from app.sdk.models import KernelPlancksterSourceData
 
 
+
 class KernelPlancksterGateway:
     def __init__(self, host: str, port: str, auth_token: str, scheme: str) -> None:
         self._host = host
@@ -23,7 +24,11 @@ class KernelPlancksterGateway:
 
     def ping(self) -> bool:
         self.logger.info(f"Pinging Kernel Plankster Gateway at {self.url}")
-        res = httpx.get(f"{self.url}/ping")
+        try:
+            res = httpx.get(f"{self.url}/ping")
+        except Exception as e:
+            self.logger.error(f"Failed to ping Kernel Plankster Gateway at '{self.url}'. Error: {e}")
+            raise e
         self.logger.info(f"Ping response: {res.text}")
         return res.status_code == 200
 

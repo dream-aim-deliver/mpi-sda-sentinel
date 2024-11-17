@@ -2,13 +2,14 @@ import logging
 import sys
 from app.scraper import scrape
 from app.sdk.scraped_data_repository import ScrapedDataRepository
-from app.setup import setup
+from app.setup import setup, string_validator
 
 
 from app.setup_scraping_client import get_scraping_config
 
 
 def main(
+    case_study_name: str,
     job_id: int,
     tracer_id: str,
     long_left: float,
@@ -36,9 +37,22 @@ def main(
         logging.basicConfig(level=log_level)
 
     
-        if not all([job_id, tracer_id, long_left, lat_down, long_right, lat_up, start_date, end_date]):
-            logger.error(f"{job_id}: job_id, tracer_id, coordinates, and date range must all be set.") 
-            raise ValueError("job_id, tracer_id, coordinates, and date range must all be set.")
+        if not all([case_study_name, job_id, tracer_id, long_left, lat_down, long_right, lat_up, start_date, end_date]):
+            raise ValueError(f"case_study_name, job_id, tracer_id, coordinates, and date range must all be set.")
+
+        string_variables = {
+            "case_study_name": case_study_name,
+            "job_id": job_id,
+            "tracer_id": tracer_id,
+            "augmentation_type": augmentation_type,
+        }
+
+        logger.info(f"Validating string variables:  {string_variables}")
+
+        for name, value in string_variables.items():
+            string_validator(f"{value}", name)
+
+        logger.info(f"String variables validated successfully!")
 
 
         kernel_planckster, protocol, file_repository = setup(
@@ -69,6 +83,7 @@ def main(
 
 
     job_output = scrape(
+        case_study_name=case_study_name,
         job_id=job_id,
         tracer_id=tracer_id,
         scraped_data_repository=scraped_data_repository,
@@ -100,6 +115,12 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Scrape data from Sentinel datacollection.")
 
+    parser.add_argument(
+        "--case-study-name",
+        type=str,
+        default="sentinel_scraper",
+        help="The name of the case study",
+    )
 
     parser.add_argument(
         "--job-id",
@@ -111,7 +132,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--tracer-id",
         type=str,
-        default="1",
+        default="test",
         help="The tracer id",
     )
 
@@ -200,8 +221,6 @@ if __name__ == "__main__":
         help="resolution",
     )
 
-
-
     parser.add_argument(
         "--sentinel_client_id",
         type=str,
@@ -215,8 +234,6 @@ if __name__ == "__main__":
         default="60",
         help="client secret ",
     )
-
-    
 
     parser.add_argument(
         "--kp_host",
@@ -247,13 +264,11 @@ if __name__ == "__main__":
         )
 
 
-
-
-
     args = parser.parse_args()
 
 
     main(
+        case_study_name=args.case_study_name,
         job_id=args.job_id,
         tracer_id=args.tracer_id,
         log_level=args.log_level,

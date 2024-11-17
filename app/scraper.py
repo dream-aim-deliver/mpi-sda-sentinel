@@ -1,4 +1,3 @@
-import sys
 from oauthlib.oauth2.rfc6749.errors import InvalidClientError
 from logging import Logger
 import logging
@@ -27,7 +26,7 @@ def load_evalscript(source: str) -> str:
             return file.read()
 
 
-def get_images(logger: Logger, job_id: int, tracer_id: str, scraped_data_repository: ScrapedDataRepository, 
+def get_images(logger: Logger, case_study_name: str, job_id: int, tracer_id: str, scraped_data_repository: ScrapedDataRepository, 
                output_data_list: list[KernelPlancksterSourceData], protocol: ProtocolEnum, 
                coords_wgs84: tuple[float, float, float, float], evalscript_bands_config: str, evalscript_truecolor: str, config: SHConfig, start_date: str, end_date: str, 
                resolution: int, image_dir: str, augmentation_type: str):
@@ -85,14 +84,21 @@ def get_images(logger: Logger, job_id: int, tracer_id: str, scraped_data_reposit
             image = data[0]
             if np.mean(image) != 0.0:  # if image is not entirely blank
                 image_hash = get_image_hash(image)
-                image_filename = f"{interval}_{augmentation_type}_banded_config_{image_hash}.png"
+                file_extension = "png"
+                try:
+                    file_extension = image.format.lower()
+                except:
+                    pass
+                image_filename = f"{interval}_{augmentation_type}_banded_config_{image_hash}.{file_extension}"
                 image_path = os.path.join(image_dir, "banded_config", image_filename)
                 os.makedirs(os.path.dirname(image_path), exist_ok=True)
                 save_image(image, image_path, factor=1.5/255, clip_range=(0, 1))
                 logger.info(f"Configured Bands Image saved to: {image_path}")
 
                 data_name = sanitize_filename(f"{interval}_{augmentation_type}_banded_config_{image_hash}")
-                relative_path = f"sentinel/{tracer_id}/{job_id}/banded_config/{data_name}.png"
+                unix_timestamp = int(time.time())  # TODO: calculate a deterministic timestamp that can match those of the other scrapers given the same start_date, end_date, and interval
+
+                relative_path = f"{case_study_name}/{tracer_id}/{job_id}/{unix_timestamp}/sentinel/banded_config/{data_name}.{file_extension}"
 
                 media_data = KernelPlancksterSourceData(
                     name=data_name,
@@ -107,18 +113,18 @@ def get_images(logger: Logger, job_id: int, tracer_id: str, scraped_data_reposit
                         local_file_name=image_path,
                     )
                 except Exception as e:
-                    logger.info("could not register file")
+                    logger.warning(f"Could not register file: {e}")
 
                 output_data_list.append(media_data)
 
-                image_filename = f"{interval}_{augmentation_type}_masked_{image_hash}.png"
+                image_filename = f"{interval}_{augmentation_type}_masked_{image_hash}.{file_extension}"
                 image_path = os.path.join(image_dir, "masked", image_filename)
                 os.makedirs(os.path.dirname(image_path), exist_ok=True)
                 save_image(image, image_path, factor=255/255, clip_range=(0, 1))
                 logger.info(f"Masked Image saved to: {image_path}")
 
                 data_name = sanitize_filename(f"{interval}_{augmentation_type}_masked_{image_hash}")
-                relative_path = f"sentinel/{tracer_id}/{job_id}/masked/{data_name}.png"
+                relative_path = f"{case_study_name}/{tracer_id}/{job_id}/{unix_timestamp}/sentinel/masked/{data_name}.{file_extension}"
 
                 media_data = KernelPlancksterSourceData(
                     name=data_name,
@@ -133,7 +139,7 @@ def get_images(logger: Logger, job_id: int, tracer_id: str, scraped_data_reposit
                         local_file_name=image_path,
                     )
                 except Exception as e:
-                    logger.info("could not register file")
+                    logger.warning(f"Could not register file: {e}")
 
                 output_data_list.append(media_data)
 
@@ -156,14 +162,19 @@ def get_images(logger: Logger, job_id: int, tracer_id: str, scraped_data_reposit
             image_true_color = truecolor[0]
             if np.mean(image_true_color) != 0.0:  # if image is not entirely blank
                 image_hash = get_image_hash(image_true_color)
-                image_filename = f"{interval}_{augmentation_type}_true_color_{image_hash}.png"
+                file_extension = "png"     
+                try:
+                    file_extension = image_true_color.format.lower()
+                except:
+                    pass
+                image_filename = f"{interval}_{augmentation_type}_true_color_{image_hash}.{file_extension}"
                 image_path = os.path.join(image_dir, "true_color", image_filename)
                 os.makedirs(os.path.dirname(image_path), exist_ok=True)
                 save_image(image_true_color, image_path, factor=1.5/255, clip_range=(0, 1))
                 logger.info(f"True Color Image saved to: {image_path}")
 
                 data_name = sanitize_filename(f"{interval}_{augmentation_type}_true_color_{image_hash}")
-                relative_path = f"sentinel/{tracer_id}/{job_id}/true_color/{data_name}.png"
+                relative_path = f"{case_study_name}/{tracer_id}/{job_id}/{unix_timestamp}/sentinel/true_color/{data_name}.{file_extension}"
 
                 media_data = KernelPlancksterSourceData(
                     name=data_name,
@@ -178,12 +189,13 @@ def get_images(logger: Logger, job_id: int, tracer_id: str, scraped_data_reposit
                         local_file_name=image_path,
                     )
                 except Exception as e:
-                    logger.info("could not register file")
+                    logger.warning(f"Could not register file: {e}")
 
     return output_data_list
 
 
 def scrape(
+    case_study_name: str,
     job_id: int,
     tracer_id: str,
     scraped_data_repository: ScrapedDataRepository,
@@ -200,8 +212,6 @@ def scrape(
     evalscript_truecolor_path:str,
     augmentation_type: str,
     resolution: int
-
-
 ) -> JobOutput:
 
 
@@ -230,8 +240,8 @@ def scrape(
                 evalscript_bands_config = load_evalscript(evalscript_bands_path)
                 evalscript_truecolor = load_evalscript(evalscript_truecolor_path) if evalscript_truecolor_path else False
                 logger.info(f"starting with augmentation_type: {augmentation_type}")
-                output_data_list = get_images(logger, job_id, tracer_id, scraped_data_repository, output_data_list, protocol, coords_wgs84, evalscript_bands_config, evalscript_truecolor ,config, start_date, end_date, resolution, image_dir, augmentation_type)
-                output_data_list = augment_wildfire_images(job_id, tracer_id, image_dir, coords_wgs84, logger, protocol, scraped_data_repository,output_data_list) if augmentation_type == "wildfire" else augment_climate_images(job_id, tracer_id, image_dir, coords_wgs84, logger, protocol, scraped_data_repository,output_data_list) 
+                output_data_list = get_images(logger, case_study_name, job_id, tracer_id, scraped_data_repository, output_data_list, protocol, coords_wgs84, evalscript_bands_config, evalscript_truecolor ,config, start_date, end_date, resolution, image_dir, augmentation_type)
+                output_data_list = augment_wildfire_images(case_study_name, job_id, tracer_id, image_dir, coords_wgs84, logger, protocol, scraped_data_repository,output_data_list) if augmentation_type == "wildfire" else augment_climate_images(case_study_name, job_id, tracer_id, image_dir, coords_wgs84, logger, protocol, scraped_data_repository,output_data_list) 
 
                 # Calculate response time
                 response_time = time.time() - start_time
