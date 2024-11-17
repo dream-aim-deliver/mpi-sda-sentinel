@@ -124,7 +124,7 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--job-id",
-        type=str,
+        type=int,
         default="1",
         help="The job id",
     )

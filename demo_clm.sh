@@ -10,6 +10,9 @@ fi
 
 
 python sentinel_scraper.py \
+ --case-study-name="climate" \
+ --tracer-id="test" \
+ --job-id="1" \
  --start_date=2023-12-01 \
  --end_date=2023-12-31 \
  --long_left=116.201761 \
