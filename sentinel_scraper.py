@@ -35,7 +35,7 @@ def main(
 
     try:
         logger = logging.getLogger(__name__)
-        logging.basicConfig(level=log_level)
+        logging.basicConfig(level=log_level, format='%(asctime)s - %(levelname)s - %(message)s')
 
     
         if not all([case_study_name, job_id, tracer_id, long_left, lat_down, long_right, lat_up, start_date, end_date]):
@@ -221,7 +221,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--dataset_name",
         type=str,
-        default="SENTINEL5P",
+        required=True,
         help="dataset configuration",
     )
 
@@ -235,14 +235,14 @@ if __name__ == "__main__":
     parser.add_argument(
         "--sentinel_client_id",
         type=str,
-        default="60",
+        required=True,
         help="client id",
     )
 
     parser.add_argument(
         "--sentinel_client_secret",
         type=str,
-        default="60",
+        required=True,
         help="client secret ",
     )
 
