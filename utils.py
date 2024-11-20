@@ -7,6 +7,9 @@ Original file is located at
 """
 
 from typing import Any, Optional, Tuple
+# Matplotlib is not thread safe, so we need to set the backend before importing pyplot
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 from datetime import datetime, timedelta

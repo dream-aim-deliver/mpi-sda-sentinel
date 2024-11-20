@@ -70,7 +70,9 @@ def get_images(logger: Logger, case_study_name: str, job_id: int, tracer_id: str
     # Add more datasets as needed
     }
     dataset = dataset_map.get(dataset_name)
-
+    if not dataset:
+        logger.error(f"Dataset {dataset_name} not supported. Use one of {dataset_map.keys()}")
+        return output_data_list
     while current_date <= last_date :
         try:
             request_bands_config = SentinelHubRequest(
@@ -213,7 +215,7 @@ def scrape(
     job_id: int,
     tracer_id: str,
     scraped_data_repository: ScrapedDataRepository,
-    log_level: Logger,
+    log_level: str,
     long_left: float,
     lat_down: float,
     long_right: float,
@@ -232,7 +234,7 @@ def scrape(
 
     try:
         logger = logging.getLogger(__name__)
-        logging.basicConfig(level=log_level)
+        logging.basicConfig(level=log_level, format='%(asctime)s - %(levelname)s - %(message)s')
 
         job_state = BaseJobState.CREATED
         current_data: KernelPlancksterSourceData | None = None
@@ -246,7 +248,6 @@ def scrape(
             # Set the job state to running
             logger.info(f"{job_id}: Starting Job")
             job_state = BaseJobState.RUNNING
-            #job.touch()
 
             start_time = time.time()  # Record start time for response time measurement
             try:
