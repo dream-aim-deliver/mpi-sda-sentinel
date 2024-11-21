@@ -1,35 +1,53 @@
-from logging import Logger
-import time
-from app.sdk.models import KernelPlancksterSourceData, ProtocolEnum
+import logging
+import tempfile
+from app.sdk.models import BaseJobState, JobOutput, KernelPlancksterSourceData, ProtocolEnum
 from app.sdk.scraped_data_repository import ScrapedDataRepository,  KernelPlancksterSourceData
 import pandas as pd
 import cv2
-import os, re
-import hashlib
 
-def sanitize_filename(filename):
-    # Replace disallowed characters with underscores
-    return re.sub(r'[^\w./]', '_', filename)
+from utils import generate_relative_path, parse_relative_path
 
-def get_image_hash(image):
-    """
-    Computes a hash for the given image.
-    """
-    hasher = hashlib.md5()
-    hasher.update(image.tobytes())
-    return hasher.hexdigest()
 
-def augment_wildfire_images(case_study_name: str, job_id: str, tracer_id: str, image_dir: str, coords_wgs84: tuple[float, float, float, float], logger: Logger, protocol: ProtocolEnum, scraped_data_repository: ScrapedDataRepository, output_data_list: list[KernelPlancksterSourceData]):
-    latitudes = [coords_wgs84[1], coords_wgs84[3]]
-    longitudes = [coords_wgs84[0], coords_wgs84[2]]
+logger = logging.getLogger(__name__)
+handler = logging.StreamHandler()
+formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+handler.setFormatter(formatter)
+logger.addHandler(handler)
+logger.setLevel(logging.INFO)
 
-    os.makedirs(os.path.join(image_dir, "masked"), exist_ok=True)
-    for image_path in os.listdir(os.path.join(image_dir, "masked")):
-        interval = "_".join(image_path.split("_")[:-1])
-        image_hash = image_path.split("_")[-1].split(".")[0]
-        full_path = os.path.join(image_dir, "masked", image_path)
-        image = cv2.imread(full_path)
-        height, width, _ = image.shape
+def augment_wildfire(
+    case_study_name: str,
+    job_id: int,
+    tracer_id: str,
+    long_left: float,
+    lat_down: float,
+    long_right: float,
+    lat_up: float,
+    scraped_data_repository: ScrapedDataRepository,
+    relevant_source_data: list[KernelPlancksterSourceData],
+    protocol: ProtocolEnum,
+) -> JobOutput:
+    failed = False
+    latitudes = [lat_down, lat_up]
+    longitudes = [long_left, long_right]
+    for source_data in relevant_source_data:
+        relative_path = source_data.relative_path
+        (
+            case_study_name,
+            tracer_id,
+            job_id,
+            timestamp,
+            dataset,
+            evalscript_name,
+            image_hash,
+            file_extension,
+        ) = parse_relative_path(relative_path=relative_path)
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=True) as fp:
+            scraped_data_repository.download_data(
+                source_data=source_data, local_file=fp.name
+            )
+            image = cv2.imread(fp.name)
+            height, width, _ = image.shape
 
         data = []
         for i in range(height):
@@ -40,21 +58,30 @@ def augment_wildfire_images(case_study_name: str, job_id: str, tracer_id: str, i
                     longitude = longitudes[0] + (j / width) * (longitudes[1] - longitudes[0])
                     data.append([latitude, longitude, "forestfire"])
 
-        if data:
-            df = pd.DataFrame(data, columns=['latitude', 'longitude', 'status'])
-            jsonpath = os.path.join(image_dir, "augmented_coordinates", interval)
-            os.makedirs(os.path.dirname(jsonpath), exist_ok=True)
-            df.to_json(jsonpath, orient="index")
-            logger.info(f"Augmented JSON saved to: {jsonpath}")
+        if len(data) == 0:
+            logger.error(f"No data found for image {fp.name}")
+            continue
 
-            # Sanitize the interval to create a valid filename
-            sanitized_interval = sanitize_filename(interval)
-            unix_timestamp = int(time.time())  # TODO: calculate a deterministic timestamp that can match those of the other scrapers given the same start_date, end_date, and interval
-            data_name = sanitize_filename(f"{sanitized_interval}_wildfire_{image_hash}")
-            relative_path = f"{case_study_name}/{tracer_id}/{job_id}/{unix_timestamp}/sentinel/augmented-coordinates/{data_name}.json"
+        df = pd.DataFrame(data, columns=['latitude', 'longitude', 'status'])
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=True) as out:
+            df.to_json(out.name, orient="index")
+            logger.info(
+                f"Augmented Data locally saved to temporary file: {out.name}"
+            )
+
+            relative_path = generate_relative_path(
+                    case_study_name=case_study_name,
+                    tracer_id=tracer_id,
+                    job_id=job_id,
+                    timestamp=timestamp,
+                    dataset=dataset,
+                    evalscript_name=evalscript_name,
+                    image_hash=image_hash + "-augmented",
+                    file_extension="json"
+            )
 
             media_data = KernelPlancksterSourceData(
-                name=data_name,
+                name="augmented-coordinates.json",
                 protocol=protocol,
                 relative_path=relative_path,
             )
@@ -63,12 +90,21 @@ def augment_wildfire_images(case_study_name: str, job_id: str, tracer_id: str, i
                 scraped_data_repository.register_scraped_json(
                     job_id=job_id,
                     source_data=media_data,
-                    local_file_name=jsonpath,
+                    local_file_name=out.name,
                 )
             except Exception as e:
-                logger.warning(f"Could not register file: {e}")
+                logger.error(f"Could not register file: {e}")
+                failed = True
+                continue
 
-            output_data_list.append(media_data)
-
-    return output_data_list
-
+    if failed:
+        return JobOutput(
+            job_state=BaseJobState.FAILED,
+            tracer_id=tracer_id,
+            source_data_list=[],
+        )
+    return JobOutput(
+        job_state=BaseJobState.FINISHED,
+        tracer_id=tracer_id,
+        source_data_list=[media_data],
+    )
