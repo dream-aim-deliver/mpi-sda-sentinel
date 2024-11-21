@@ -75,7 +75,7 @@
         "args": [
           "--case-study-name=sentinel-5p",
           "--tracer-id=potato",
-          "--job-id=3",
+          "--job-id=4",
           "--start_date=2024-09-15T09:00",
           "--end_date=2024-09-15T12:00",
           "--interval=60",
@@ -98,7 +98,7 @@
         "args": [
           "--case-study-name=sentinel-5p",
           "--tracer-id=potato",
-          "--job-id=3",
+          "--job-id=4",
           "--long_left=-156.708984",
           "--datasets-evalscripts={\"SENTINEL5P\": [\"climate-bands\", \"climate-mask\"], \"SENTINEL2-L1C\": [\"true-color\"]}",
           "--lat_up=20.759645",
@@ -116,7 +116,7 @@
         "console": "integratedTerminal",
         "args": [
           "--tracer-id=potato",
-          "--job-id=3",
+          "--job-id=4",
           "--long_left=-156.708984",
           "--datasets-evalscripts={\"SENTINEL5P\": [\"climate-bands\", \"climate-mask\"], \"SENTINEL2-L1C\": [\"true-color\"]}",
           "--lat_up=20.759645",

@@ -33,6 +33,7 @@ def main(
 ) -> None:
 
     try:
+        datasets_evalscripts = json.loads(datasets_evalscripts)
         logger = logging.getLogger(__name__)
         logging.basicConfig(level=log_level, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -213,7 +214,7 @@ if __name__ == "__main__":
     
     parser.add_argument(
         "--datasets-evalscripts",
-        type=json.loads,
+        type=str,
         required=True,
         help="dictionary in the format {\"dataset_name\": [evalscript_path1, evalscript_path2, ...]}",
     )
