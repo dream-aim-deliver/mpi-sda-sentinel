@@ -18,7 +18,7 @@ def main(
     lat_down: float,
     long_right: float,
     lat_up: float,
-    dataset_evalscripts: dict[str,list[str]],
+    datasets_evalscripts: dict[str,list[str]],
     kp_host: str,
     kp_port: int,
     kp_auth_token: str,
@@ -48,14 +48,14 @@ def main(
         logger.info(f"String variables validated successfully!")
         
         final_dataset_evalscripts = {}
-        dataset_names = dataset_evalscripts.keys()
+        dataset_names = datasets_evalscripts.keys()
         for dataset_name in dataset_names:
             if dataset_name not in SUPPORTED_DATASET_EVALSCRIPTS.keys():
                 logger.error(
                     f"Dataset {dataset_name} not supported. Use one of {SUPPORTED_DATASET_EVALSCRIPTS.keys()}"
                 )
                 sys.exit(1)
-            requested_evalscripts = dataset_evalscripts[dataset_name]
+            requested_evalscripts = datasets_evalscripts[dataset_name]
             supported_evalscripts = [x['name'] for x in SUPPORTED_DATASET_EVALSCRIPTS[dataset_name]["supported_evalscripts"]]
             for evalscript in requested_evalscripts:
                 if evalscript not in supported_evalscripts:
@@ -232,7 +232,7 @@ if __name__ == "__main__":
         lat_down=args.lat_down,
         long_right=args.long_right,
         lat_up=args.lat_up,
-        dataset_evalscripts=args.datasets_evalscripts,
+        datasets_evalscripts=args.datasets_evalscripts,
         kp_host=args.kp_host,
         kp_port=args.kp_port,
         kp_auth_token=args.kp_auth_token,

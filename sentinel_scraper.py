@@ -21,7 +21,7 @@ def main(
     start_date: str,
     end_date: str,
     interval: int,
-    dataset_evalscripts: dict[str,list[str]],
+    datasets_evalscripts: dict[str,list[str]],
     resolution: int,
     sentinel_client_id: str,
     sentinel_client_secret: str,
@@ -54,14 +54,14 @@ def main(
         logger.info(f"String variables validated successfully!")
         
         final_datasaet_evalscripts = {}
-        dataset_names = dataset_evalscripts.keys()
+        dataset_names = datasets_evalscripts.keys()
         for dataset_name in dataset_names:
             if dataset_name not in SUPPORTED_DATASET_EVALSCRIPTS.keys():
                 logger.error(
                     f"Dataset {dataset_name} not supported. Use one of {SUPPORTED_DATASET_EVALSCRIPTS.keys()}"
                 )
                 sys.exit(1)
-            requested_evalscripts = dataset_evalscripts[dataset_name]
+            requested_evalscripts = datasets_evalscripts[dataset_name]
             supported_evalscripts = [x['name'] for x in SUPPORTED_DATASET_EVALSCRIPTS[dataset_name]["supported_evalscripts"]]
             for evalscript in requested_evalscripts:
                 if evalscript not in supported_evalscripts:
@@ -283,7 +283,7 @@ if __name__ == "__main__":
         start_date=args.start_date,
         end_date=args.end_date,
         interval=args.interval,
-        dataset_evalscripts=args.datasets_evalscripts,
+        datasets_evalscripts=args.datasets_evalscripts,
         resolution=args.resolution,
         sentinel_client_id=args.sentinel_client_id,
         sentinel_client_secret=args.sentinel_client_secret,
