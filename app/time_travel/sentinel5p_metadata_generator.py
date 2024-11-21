@@ -150,7 +150,7 @@ def generate_time_travel_metadata(
     with tempfile.NamedTemporaryFile(suffix=".json", delete=True) as out:
         with open(out.name, "w") as f:
             f.write(metadata.model_dump_json(indent=2))
-        relative_path = f"{case_study_name}/{tracer_id}/{job_id}/sentinel/sentinel5p_time_travel_metadata.json"
+        relative_path = f"{case_study_name}/{tracer_id}/{job_id}/metadata.json"
         out_source_data = KernelPlancksterSourceData(
             name="time_travel_metadata.json",
             protocol=protocol,
