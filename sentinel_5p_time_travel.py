@@ -5,26 +5,19 @@ from app.config import SUPPORTED_DATASET_EVALSCRIPTS
 from app.scraper import scrape
 from app.sdk.scraped_data_repository import ScrapedDataRepository
 from app.setup import setup, string_validator
+from pydantic import BaseModel
 
-
-from app.setup_scraping_client import get_scraping_config
+from app.time_travel.sentinel5p_metadata_generator import generate_time_travel_metadata
 
 
 def main(
-    case_study_name: str,
     job_id: int,
     tracer_id: str,
     long_left: float,
     lat_down: float,
     long_right: float,
     lat_up: float,
-    start_date: str,
-    end_date: str,
-    interval: int,
     dataset_evalscripts: dict[str,list[str]],
-    resolution: int,
-    sentinel_client_id: str,
-    sentinel_client_secret: str,
     kp_host: str,
     kp_port: int,
     kp_auth_token: str,
@@ -36,9 +29,9 @@ def main(
         logger = logging.getLogger(__name__)
         logging.basicConfig(level=log_level, format='%(asctime)s - %(levelname)s - %(message)s')
 
-    
-        if not all([case_study_name, job_id, tracer_id, long_left, lat_down, long_right, lat_up, start_date, end_date]):
-            raise ValueError(f"case_study_name, job_id, tracer_id, coordinates, and date range must all be set.")
+        case_study_name = "sentinel-5p"
+        if not all([job_id, tracer_id, long_left, lat_down, long_right, lat_up]):
+            raise ValueError(f"job_id, tracer_id, coordinates must all be set.")
 
         string_variables = {
             "case_study_name": case_study_name,
@@ -53,7 +46,7 @@ def main(
 
         logger.info(f"String variables validated successfully!")
         
-        final_datasaet_evalscripts = {}
+        final_dataset_evalscripts = {}
         dataset_names = dataset_evalscripts.keys()
         for dataset_name in dataset_names:
             if dataset_name not in SUPPORTED_DATASET_EVALSCRIPTS.keys():
@@ -71,10 +64,10 @@ def main(
                     raise ValueError(
                         f"Evalscript {evalscript} not supported for {dataset_name}. Use one of {SUPPORTED_DATASET_EVALSCRIPTS[dataset_name]['supported_evalscripts']}"
                     )
-            final_datasaet_evalscripts[dataset_name] = SUPPORTED_DATASET_EVALSCRIPTS[dataset_name]
-            final_datasaet_evalscripts[dataset_name]["evalscripts"] = [x for x in SUPPORTED_DATASET_EVALSCRIPTS[dataset_name]["supported_evalscripts"] if x["name"] in requested_evalscripts]
-            
-        logger.info(f"Setting up scraper for case study: {case_study_name}")
+            final_dataset_evalscripts[dataset_name] = SUPPORTED_DATASET_EVALSCRIPTS[dataset_name]
+            final_dataset_evalscripts[dataset_name]["evalscripts"] = [x for x in SUPPORTED_DATASET_EVALSCRIPTS[dataset_name]["supported_evalscripts"] if x["name"] in requested_evalscripts]
+        
+        logger.info(f"Setting up time trave for case study: {case_study_name}")
 
         kernel_planckster, protocol, file_repository = setup(
             job_id=job_id,
@@ -91,34 +84,30 @@ def main(
             file_repository=file_repository,
         )
 
-        sentinel_config = get_scraping_config(
-            job_id=job_id,
-            logger=logger,
-            sentinel_client_id=sentinel_client_id,
-            sentinel_client_secret=sentinel_client_secret
-        )
-
+        root_relative_path = f"{case_study_name}/{tracer_id}/{job_id}"
+        relevant_files = kernel_planckster.list_source_data(root_relative_path)
+        
+    
+        if not relevant_files or len(relevant_files) == 0:
+            logger.error(f"No relevant files found in {root_relative_path}.")
+            sys.exit(1)
+        
+        print(relevant_files)
     except Exception as error:
-        logger.error(f"Unable to setup the scraper. Error: {error}")
+        logger.error(f"Unable to setup the climate augmentation stage. Error: {error}")
         sys.exit(1)
 
 
-    job_output = scrape(
-        case_study_name=case_study_name,
+    job_output = generate_time_travel_metadata(
         job_id=job_id,
+        protocol=protocol,
         tracer_id=tracer_id,
         scraped_data_repository=scraped_data_repository,
-        log_level=log_level,
         long_left=long_left,
         lat_down=lat_down,
         long_right=long_right,
         lat_up=lat_up,
-        sentinel_config=sentinel_config,
-        start_date=start_date,
-        end_date=end_date,
-        interval=interval,
-        dataset_evalscripts=final_datasaet_evalscripts,
-        resolution=resolution
+        relevant_source_data=relevant_files,
     )
 
     logger.info(f"{job_id}: Scraper finished with state: {job_output.job_state.value}")
@@ -132,13 +121,6 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Scrape data from Sentinel datacollection.")
-
-    parser.add_argument(
-        "--case-study-name",
-        type=str,
-        help="The name of the case study",
-        required=True,
-    )
 
     parser.add_argument(
         "--job-id",
@@ -189,54 +171,11 @@ if __name__ == "__main__":
         help="topmost lattitude ~ top edge of bbox ",
     
     )
-
-    parser.add_argument(
-        "--start_date",
-        type=str,
-        help="start date",
-        required=True,
-    )
-
-    parser.add_argument(
-        "--end_date",
-        type=str,
-        help="end date",
-        required=True,
-    )
-
-    parser.add_argument(
-        "--interval",
-        type=int,
-        help="Time interval between scraping events, in minutes.",
-        required=True,
-    )
-    
     parser.add_argument(
         "--datasets-evalscripts",
         type=json.loads,
         required=True,
         help="dictionary in the format {\"dataset_name\": [evalscript_path1, evalscript_path2, ...]}",
-    )
-
-    parser.add_argument(
-        "--resolution",
-        type=str,
-        default=60,
-        help="resolution",
-    )
-
-    parser.add_argument(
-        "--sentinel_client_id",
-        type=str,
-        required=True,
-        help="client id",
-    )
-
-    parser.add_argument(
-        "--sentinel_client_secret",
-        type=str,
-        required=True,
-        help="client secret ",
     )
 
     parser.add_argument(
@@ -272,7 +211,6 @@ if __name__ == "__main__":
 
 
     main(
-        case_study_name=args.case_study_name,
         job_id=args.job_id,
         tracer_id=args.tracer_id,
         log_level=args.log_level,
@@ -280,17 +218,9 @@ if __name__ == "__main__":
         lat_down=args.lat_down,
         long_right=args.long_right,
         lat_up=args.lat_up,
-        start_date=args.start_date,
-        end_date=args.end_date,
-        interval=args.interval,
         dataset_evalscripts=args.datasets_evalscripts,
-        resolution=args.resolution,
-        sentinel_client_id=args.sentinel_client_id,
-        sentinel_client_secret=args.sentinel_client_secret,
         kp_host=args.kp_host,
         kp_port=args.kp_port,
         kp_auth_token=args.kp_auth_token,
         kp_scheme=args.kp_scheme
     )
-
-

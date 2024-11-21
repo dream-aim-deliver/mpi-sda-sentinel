@@ -17,32 +17,21 @@ class ScrapedDataRepository:
         self.file_repository = file_repository
         self._logger = logging.getLogger(__name__)
 
-    @property
-    def log_level(self) -> str:
-        return self._log_level
 
     @property
     def logger(self) -> logging.Logger:
-
         return self._logger
 
 
     def register_scraped_photo(self, source_data: KernelPlancksterSourceData, job_id: int, local_file_name: str) -> KernelPlancksterSourceData:
-
         match self.protocol:
-
             case ProtocolEnum.S3:
-
                 signed_url = self.kernel_planckster.generate_signed_url(source_data=source_data) 
-                
                 self.logger.info(f"{job_id}: Uploading photo to object store")
-
                 self.file_repository.public_upload(signed_url, local_file_name)
-                
                 self.logger.info(
                 f"{job_id}: Uploaded photo to {signed_url}"
                 )
-
                 self.kernel_planckster.register_new_source_data(source_data=source_data)
 
 
@@ -114,3 +103,27 @@ class ScrapedDataRepository:
                 )
 
         return source_data
+    
+    def download_data(self, source_data: KernelPlancksterSourceData, local_file: str):
+        """
+        Download data from Kernel Plankster Gateway.
+
+        Args:
+        - source_data: KernelPlancksterSourceData
+        - local_file: str
+        """
+        match self.protocol:
+            case ProtocolEnum.S3:
+                signed_url = self.kernel_planckster.generate_signed_url(source_data=source_data, is_download_request=True)
+                self.logger.info(f"Downloading data from {signed_url}")
+                self.file_repository.public_download(signed_url, local_file)
+                self.logger.info(f"Downloaded data to {local_file}")
+            case ProtocolEnum.LOCAL:
+                # If local, then we don't use kernel planckster at all
+                # NOTE: local is deprecated
+                self.file_repository.save_file_locally(
+                    file_to_save=local_file,
+                    source_data=source_data,
+                    file_type="data",
+                )
+        return local_file

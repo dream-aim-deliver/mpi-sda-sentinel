@@ -32,14 +32,15 @@ class KernelPlancksterGateway:
         self.logger.info(f"Ping response: {res.text}")
         return res.status_code == 200
 
-    def generate_signed_url(self, source_data: KernelPlancksterSourceData) -> str:
+    def generate_signed_url(self, source_data: KernelPlancksterSourceData, is_download_request: bool = False) -> str:
         if not self.ping():
             self.logger.error(f"Failed to ping Kernel Plankster Gateway at {self.url}")
             raise Exception("Failed to ping Kernel Plankster Gateway")
 
         self.logger.info(f"Generating signed url for {source_data.relative_path}")
 
-        endpoint = f"{self.url}/client/{self._client_id}/upload-credentials"
+        endpoint_root = f"{self.url}/client/{self._client_id}"
+        endpoint = f"{endpoint_root}/download-credentials" if is_download_request else f"{endpoint_root}/upload-credentials"
 
         params = {
             "protocol": source_data.protocol.value,
@@ -125,3 +126,48 @@ class KernelPlancksterGateway:
         assert res_name == source_data.name
 
         return kp_source_data
+
+    def list_source_data(self, relative_path_root: str) -> list[KernelPlancksterSourceData]:
+        if not self.ping():
+            self.logger.error(f"Failed to ping Kernel Plankster Gateway at {self.url}")
+            raise Exception("Failed to ping Kernel Plankster Gateway")
+
+        self.logger.info(f"Listing source with Kernel Plankster Gateway at {self.url}")
+
+
+        endpoint = f"{self.url}/client/{self._client_id}/source"
+
+        headers = {
+            "Content-Type": "application/json",
+            "x-auth-token": self._auth_token,
+            }
+
+        res = httpx.get(
+            url=endpoint,
+            headers=headers,
+        )
+
+        self.logger.info(f"List source data response: {res.text}")
+        if res.status_code != 200:
+            raise ValueError(
+                f"Failed to list source data with Kernel Plankster Gateway: {res.text}"
+            )
+
+        kp_source_data = res.json()
+
+        if not kp_source_data:
+            raise ValueError(f"Failed to list source data. Source Data not returned. Dumping raw response:\n{res.json()}")
+
+        if not kp_source_data['status']:
+            raise ValueError(f"Failed to list source data. Source Data status not returned. Dumping raw response:\n{res.json()}")
+        
+        kp_source_data = kp_source_data.get("source_data_list")
+        output: list[KernelPlancksterSourceData] = [
+            KernelPlancksterSourceData(
+                name=x.get("name"),
+                protocol=x.get("protocol"),
+                relative_path=x.get("relative_path"),
+            ) for x in kp_source_data
+            if x.get("relative_path").startswith(relative_path_root)
+        ]
+        return output
