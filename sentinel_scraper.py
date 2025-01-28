@@ -221,7 +221,7 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--resolution",
-        type=str,
+        type=int,
         default=60,
         help="resolution",
     )
