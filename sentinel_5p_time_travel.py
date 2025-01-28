@@ -18,6 +18,7 @@ def main(
     long_right: float,
     lat_up: float,
     datasets_evalscripts: str,
+    resolution:str,
     kp_host: str,
     kp_port: int,
     kp_auth_token: str,
@@ -68,7 +69,7 @@ def main(
             final_dataset_evalscripts[dataset_name] = SUPPORTED_DATASET_EVALSCRIPTS[dataset_name]
             final_dataset_evalscripts[dataset_name]["evalscripts"] = [x for x in SUPPORTED_DATASET_EVALSCRIPTS[dataset_name]["supported_evalscripts"] if x["name"] in requested_evalscripts]
         
-        logger.info(f"Setting up time trave for case study: {case_study_name}")
+        logger.info(f"Setting up time travel for case study: {case_study_name}")
 
         kernel_planckster, protocol, file_repository = setup(
             job_id=job_id,
@@ -180,6 +181,13 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
+        "--resolution",
+        type=str,
+        default=60,
+        help="resolution of the output image",
+    )
+    
+    parser.add_argument(
         "--kp_host",
         type=str,
         help="kp host",
@@ -220,6 +228,7 @@ if __name__ == "__main__":
         long_right=args.long_right,
         lat_up=args.lat_up,
         datasets_evalscripts=args.datasets_evalscripts,
+        resolution=args.resolution,
         kp_host=args.kp_host,
         kp_port=args.kp_port,
         kp_auth_token=args.kp_auth_token,
