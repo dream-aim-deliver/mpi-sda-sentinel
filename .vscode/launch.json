@@ -73,12 +73,13 @@
         "program": "${workspaceFolder}/sentinel_scraper.py",
         "console": "integratedTerminal",
         "args": [
-          "--case-study-name=sentinel-5p",
+          "--case-study-name=climate-monitoring",
           "--tracer-id=potato",
-          "--job-id=4",
+          "--job-id=7",
           "--start_date=2024-09-15T09:00",
-          "--end_date=2024-09-15T12:00",
-          "--interval=60",
+          "--end_date=2024-09-16T12:00",
+          "--interval=1440",
+          "--resolution=60",
           "--long_left=-156.708984",
           "--datasets-evalscripts={\"SENTINEL5P\": [\"climate-bands\", \"climate-mask\"], \"SENTINEL2-L1C\": [\"true-color\"]}",
           "--lat_up=20.759645",
@@ -86,7 +87,7 @@
           "--lat_down=20.955027",
           "--log-level=INFO",
           "--kp_auth_token=test123", "--kp_host=localhost", "--kp_port=8000", "--kp_scheme=http",
-          "--sentinel_client_id=e2397fbb-0fb6-4742-9cba-c142ad44f617", "--sentinel_client_secret=DD6XKTPeDz4juiLWtItNGPofztG9frc3",
+          "--sentinel_client_id=f7f3f19d-80ec-4164-885f-5838433b3b78", "--sentinel_client_secret=LMLDSrpJEQrQUFdokPuvttezW7g7wPMh",
         ]
       },
       {
@@ -96,9 +97,9 @@
         "program": "${workspaceFolder}/climate_augmentation.py",
         "console": "integratedTerminal",
         "args": [
-          "--case-study-name=sentinel-5p",
+          "--case-study-name=climate-monitoring",
           "--tracer-id=potato",
-          "--job-id=4",
+          "--job-id=3",
           "--long_left=-156.708984",
           "--datasets-evalscripts={\"SENTINEL5P\": [\"climate-bands\", \"climate-mask\"], \"SENTINEL2-L1C\": [\"true-color\"]}",
           "--lat_up=20.759645",
@@ -116,7 +117,7 @@
         "console": "integratedTerminal",
         "args": [
           "--tracer-id=potato",
-          "--job-id=4",
+          "--job-id=10",
           "--long_left=-156.708984",
           "--datasets-evalscripts={\"SENTINEL5P\": [\"climate-bands\", \"climate-mask\"], \"SENTINEL2-L1C\": [\"true-color\"]}",
           "--lat_up=20.759645",
@@ -124,6 +125,30 @@
           "--lat_down=20.955027",
           "--log-level=INFO",
           "--kp_auth_token=test123", "--kp_host=localhost", "--kp_port=8000", "--kp_scheme=http",
+        ]
+      },
+      {
+        "name": "Swissgrid Scraping",
+        "type": "debugpy",
+        "request": "launch",
+        "program": "${workspaceFolder}/sentinel_scraper.py",
+        "console": "integratedTerminal",
+        "args": [
+          "--case-study-name=swissgrid",
+          "--tracer-id=potato",
+          "--job-id=2",
+          "--start_date=2024-09-15T09:00",
+          "--end_date=2024-09-17T09:00",
+          "--interval=180",
+          "--long_left=8.2233",
+          "--datasets-evalscripts={\"SENTINEL5P\": [\"optical-thickness\"], \"SENTINEL2-L1C\": [\"natural\"], \"SENTINEL2-L2A\": [\"moisture\"], \"SENTINEL3-OLCI\": [\"chlorophyll\"], \"SENTINEL3-SLSTR\": [\"thermal\"]}",
+          "--lat_up=47.5933",
+          "--long_right=-8.2433",
+          "--lat_down=47.5733",
+          "--resolution=600",
+          "--log-level=INFO",
+          "--kp_auth_token=test123", "--kp_host=localhost", "--kp_port=8000", "--kp_scheme=http",
+          "--sentinel_client_id=f7f3f19d-80ec-4164-885f-5838433b3b78", "--sentinel_client_secret=LMLDSrpJEQrQUFdokPuvttezW7g7wPMh",
         ]
       },
       

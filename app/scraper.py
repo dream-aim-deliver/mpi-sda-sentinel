@@ -90,6 +90,8 @@ def scrape(
                             logger,
                             coords_wgs84,
                             sentinel_dataset,
+                            current_datetime,
+                            current_datetime + parsed_interval,
                             evalscript,
                             sentinel_config,
                             resolution,

@@ -122,14 +122,14 @@ SUPPORTED_DATASET_EVALSCRIPTS = {
                 "description": "A mask of the wildfire areas in the image. The mask is created by thresholding the NDVI and NDWI values in the image."
             },
             {
-                "name" : "optical_thickness",
-                "path" : "",
-                "scaling_factor": 255,
+                "name" : "optical-thickness",
+                "path" : "https://gist.githubusercontent.com/Rahul-7131/3a500efecf5dbd5af7ebe7cdcc87a0e9/raw/451e3fac3efb0cdfda992f9097940d9e43a29028/optical_thickness.js",
+                "scaling_factor": 1.5,
                 "clip_range": {
                     "min": 0,
                     "max": 1
                 },
-                "description" : "https://gist.githubusercontent.com/Rahul-7131/3a500efecf5dbd5af7ebe7cdcc87a0e9/raw/451e3fac3efb0cdfda992f9097940d9e43a29028/optical_thickness.js"
+                "description" : "A Sentinel-5P image highlighting areas of interest based on cloud cover in the image."
             }
         ]
     },

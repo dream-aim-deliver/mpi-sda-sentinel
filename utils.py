@@ -39,11 +39,13 @@ def download_image(
     logger: Logger,
     coords_wgs84: tuple[float, float, float, float],
     dataset: DataCollection,
+    start_time: datetime,
+    end_time: datetime,
     evalscript: str,
     config: SHConfig,
     resolution: int,
 ):
-    coords_bbox = BBox(bbox=coords_wgs84, crs=CRS.WGS84)
+    coords_bbox = BBox(coords_wgs84, crs=CRS.WGS84)
     coords_size = bbox_to_dimensions(coords_bbox, resolution=resolution)
     try:
         sentinel_request = SentinelHubRequest(
@@ -51,6 +53,7 @@ def download_image(
             input_data=[
                 SentinelHubRequest.input_data(
                     data_collection=dataset,
+                    time_interval=(start_time, end_time),
                 )
             ],
             responses=[SentinelHubRequest.output_response("default", MimeType.PNG)],
