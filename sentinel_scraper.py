@@ -21,6 +21,7 @@ def main(
     start_date: str,
     end_date: str,
     interval: int,
+    insert_empty_images: bool,
     datasets_evalscripts: dict[str,list[str]],
     resolution: int,
     sentinel_client_id: str,
@@ -119,7 +120,8 @@ def main(
         end_date=end_date,
         interval=interval,
         dataset_evalscripts=final_datasaet_evalscripts,
-        resolution=resolution
+        resolution=resolution,
+        insert_empty_images=insert_empty_images
     )
 
     logger.info(f"{job_id}: Scraper finished with state: {job_output.job_state.value}")
@@ -220,6 +222,13 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
+        "--insert-empty-images",
+        type=bool,
+        default=False,
+        help="Insert empty images if no image is found",
+    )
+
+    parser.add_argument(
         "--resolution",
         type=int,
         default=60,
@@ -284,6 +293,7 @@ if __name__ == "__main__":
         start_date=args.start_date,
         end_date=args.end_date,
         interval=args.interval,
+        insert_empty_images=args.insert_empty_images,
         datasets_evalscripts=args.datasets_evalscripts,
         resolution=args.resolution,
         sentinel_client_id=args.sentinel_client_id,

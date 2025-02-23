@@ -78,7 +78,7 @@ def generate_time_travel_metadata(
                 timestamp,
                 dataset,
                 evalscript_name,
-                _,
+                hash,
                 file_extension,
             ) = parse_relative_path(relative_path=image_path)
             if dataset not in SUPPORTED_DATASET_EVALSCRIPTS:
@@ -101,6 +101,12 @@ def generate_time_travel_metadata(
                 keyframe.images.append(Error(
                     errorMessage=f"Evalscript {evalscript_name} not found for {dataset}.",
                     errorName="MissingEvalscript",
+                ))
+                continue
+            if hash == "empty":
+                keyframe.images.append(Error(
+                    errorMessage=f"No Satellite Image was found for this timestamp. Possibly the satellite did not pass over the given coordinates.",
+                    errorName="EmptyImage",
                 ))
                 continue
             img_to_append = Image(
