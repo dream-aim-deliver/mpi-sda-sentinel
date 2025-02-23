@@ -15,7 +15,7 @@ from app.sdk.scraped_data_repository import (
 )
 from app.setup import datetime_parser
 
-from utils import download_image, generate_relative_path, get_image_hash, load_evalscript, save_image
+from utils import download_image, generate_empty_image, generate_relative_path, get_image_hash, is_image_empty, load_evalscript, save_image
 import tempfile
 
 
@@ -35,6 +35,7 @@ def scrape(
     interval: int,
     dataset_evalscripts: dict[str, dict[str, Any]],
     resolution: int,
+    insert_empty_images: bool,
 ) -> JobOutput:
 
     try:
@@ -98,9 +99,16 @@ def scrape(
                         )
                         if not image or len(image) == 0:
                             logger.warning(f"{current_iteration}/{total_iterations} No image found!")
-                            continue
+                            if insert_empty_images:
+                                image = generate_empty_image()
+                                image = [image]
+                            else:
+                                continue
                         image = image[0]
-                        image_hash = get_image_hash(image)
+                        if is_image_empty(image):
+                            image_hash = "empty"
+                        else:
+                            image_hash = get_image_hash(image)
                         file_extension = "png"
                         clip_range = evalscript_config.get("clip_range", (0, 1))
                         scaling_factor = evalscript_config.get("scaling_factor", 1.5) / 255

@@ -10,7 +10,9 @@ from datetime import datetime, timedelta
 from logging import Logger
 import hashlib
 import re
-
+import numpy as np
+from PIL import Image
+from typing import Literal
 
 from sentinelhub import (
     SHConfig,
@@ -65,11 +67,9 @@ def download_image(
         return data
     except InvalidClientError as e:
         logger.error(f"Sentinel Hub client error: {e}")
-        raise e
 
     except Exception as e:
         logger.warning(e)
-        return str(e)
 
 def save_image(
     image: np.ndarray, filename: str, factor: float = 1.0, clip_range: Optional[Tuple[float, float]] = None, **kwargs: Any
@@ -86,6 +86,36 @@ def save_image(
     plt.margins(0,0)
     plt.savefig(filename, bbox_inches="tight",pad_inches = 0)
     plt.close()
+
+
+def generate_empty_image():
+    """Utility function for generating an empty RGB image."""
+    return np.zeros((256, 256, 3), dtype=np.uint8)
+
+
+def is_image_empty(image: np.ndarray) -> bool:
+    """ Utility function for checking if an image is empty."""
+    img = Image.fromarray(image)
+    if img.mode == "RGBA":
+        alpha_channel = np.array(img.getchannel("A"))
+        transparent_ratio = np.sum(alpha_channel == 0) / alpha_channel.size
+        if transparent_ratio > 0.9:
+            # if np.all(alpha_channel == 0):
+            return True
+
+    img_gray = img.convert("L")
+    img_array = np.array(img_gray)
+
+    # Check if the image is entirely black, natural
+    if np.all(img_array == 0):
+        print(f"Image is empty (black)")
+        return True
+
+    # Check if the image is entirely white, natural
+    elif np.all(img_array == 255):
+        print(f"Image is empty (white)")
+        return True
+    return False
 
 def get_image_hash(image):
     """

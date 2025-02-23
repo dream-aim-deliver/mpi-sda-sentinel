@@ -18,7 +18,6 @@ def main(
     long_right: float,
     lat_up: float,
     datasets_evalscripts: str,
-    resolution:str,
     kp_host: str,
     kp_port: int,
     kp_auth_token: str,
@@ -180,12 +179,6 @@ if __name__ == "__main__":
         help="dictionary in the format {\"dataset_name\": [evalscript_path1, evalscript_path2, ...]}",
     )
 
-    parser.add_argument(
-        "--resolution",
-        type=str,
-        default=60,
-        help="resolution of the output image",
-    )
     
     parser.add_argument(
         "--kp_host",
@@ -228,7 +221,6 @@ if __name__ == "__main__":
         long_right=args.long_right,
         lat_up=args.lat_up,
         datasets_evalscripts=args.datasets_evalscripts,
-        resolution=args.resolution,
         kp_host=args.kp_host,
         kp_port=args.kp_port,
         kp_auth_token=args.kp_auth_token,
