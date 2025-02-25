@@ -1,5 +1,6 @@
 import logging
 import tempfile
+from typing import List
 from app.sdk.models import (
     BaseJobState,
     JobOutput,
@@ -33,6 +34,14 @@ logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 
 
+def __filter_paths_by_timestamp(
+    timestamp: str, relative_paths: List[KernelPlancksterSourceData]
+) -> List[KernelPlancksterSourceData]:
+    return [
+        path for path in relative_paths if timestamp in path.relative_path
+    ]
+
+
 def augment_climate_images(
     case_study_name: str,
     job_id: int,
@@ -48,21 +57,51 @@ def augment_climate_images(
     failed = False
     latitudes = [lat_down, lat_up]
     longitudes = [long_left, long_right]
+    timestamps: List[str] = []
     for source_data in relevant_source_data:
         relative_path = source_data.relative_path
         (
-            case_study_name,
-            tracer_id,
-            job_id,
+            _,
+            _,
+            _,
             timestamp,
-            dataset,
-            evalscript_name,
-            image_hash,
+            _,
+            _,
+            _,
             _,
         ) = parse_relative_path(relative_path=relative_path)
+        timestamps.append(timestamp)
+
+    timestamps = list(set(timestamps))
+    for idx, timestamp in enumerate(timestamps):
+        timestamp_relative_paths = __filter_paths_by_timestamp(
+            timestamp, relevant_source_data
+        )
+        climate_mask_path: KernelPlancksterSourceData | None = next(
+            (path for path in timestamp_relative_paths if "climate-mask" in path.relative_path), None
+        )
+        if climate_mask_path is None:
+            logger.error(f"No climate mask data found for timestamp {timestamp}")
+            continue
+        (
+            _,
+            _,
+            _,
+            _,
+            _,
+            _,
+            image_hash,
+            _,
+        ) = parse_relative_path(relative_path=climate_mask_path.relative_path)
+        
+        if image_hash == "empty":
+            logger.error(f"Empty climate mask image found for timestamp {timestamp}")
+            continue
+        
         with tempfile.NamedTemporaryFile(suffix=".png", delete=True) as fp:
             scraped_data_repository.download_data(
-                source_data=source_data, local_file=fp.name
+                source_data=climate_mask_path,
+                local_file=fp.name
             )
             image = cv2.imread(fp.name)
             height, width, _ = image.shape
@@ -102,7 +141,7 @@ def augment_climate_images(
                         data.append([latitude, longitude, "unknown"])
 
             if len(data) == 0:
-                logger.error(f"No data found for image {fp.name}")
+                logger.error(f"No data found for climate mask image {fp.name}")
                 continue
             df = pd.DataFrame(data, columns=["latitude", "longitude", "CO_level"])
             with tempfile.NamedTemporaryFile(suffix=".json", delete=True) as out:
@@ -110,16 +149,17 @@ def augment_climate_images(
                 logger.info(
                     f"Augmented Climate Data locally saved to temporary file: {out.name}"
                 )
-            
+
                 relative_path = generate_relative_path(
                     case_study_name=case_study_name,
                     tracer_id=tracer_id,
                     job_id=job_id,
                     timestamp=timestamp,
-                    dataset=dataset,
-                    evalscript_name=evalscript_name,
+                    dataset='SENTINEL5P', #TODO: hardcoded value
+                    evalscript_name='climate-mask', #TODO: hardcoded value
                     image_hash=image_hash + "-augmented",
-                    file_extension="json")
+                    file_extension="json",
+                )
 
                 media_data = KernelPlancksterSourceData(
                     name="augmented-coordinates.json",
