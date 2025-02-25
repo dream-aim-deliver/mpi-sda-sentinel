@@ -105,7 +105,7 @@ def generate_time_travel_metadata(
                 continue
             if hash == "empty":
                 keyframe.images.append(Error(
-                    errorMessage=f"No Satellite Image was found for this timestamp. Possibly the satellite did not pass over the given coordinates.",
+                    errorMessage=f"No Satellite Image was found for this timestamp. Possibly the satellite {dataset} did not pass over the given coordinates.",
                     errorName="EmptyImage",
                 ))
                 continue
@@ -119,7 +119,7 @@ def generate_time_travel_metadata(
         if len(augmented_coordinates_path) != 1:
             keyframe.data.append(Error(
                 errorName="AugmentedCoordinatesError",
-                errorMessage="Augmented data are missing or more than 1 dataset was found for this timestamp",
+                errorMessage="Augmented data are missing for this timestamp. Possibly Sentinel5p did not pass over the given coordinates.",
             ))
             metadata.keyframes.append(keyframe)
             continue
