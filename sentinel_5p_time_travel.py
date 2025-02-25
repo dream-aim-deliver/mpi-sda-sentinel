@@ -93,9 +93,8 @@ def main(
             logger.error(f"No relevant files found in {root_relative_path}.")
             sys.exit(1)
         
-        print(relevant_files)
     except Exception as error:
-        logger.error(f"Unable to setup the climate augmentation stage. Error: {error}")
+        logger.error(f"Unable to setup the metadata stage. Error: {error}")
         sys.exit(1)
 
 
